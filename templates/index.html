@@ -1,37 +1,37 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Morse Code Puzzle</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <h1>Разгадай код Морзе! 🎁</h1>
+{% extends "base.html" %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert {{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+{% block title %}Разгадай код{% endblock %}
 
+{% block content %}
+<div class="container">
+    <h1>Разгадай код к подарку! 🎂</h1>
+    
     <div class="grid">
         {% for code in codes %}
             <div class="card {{ 'solved' if code.solved }}">
-                <span>#{{ code.number }}</span>
-                {% if not code.solved %}
-                    <form method="POST" action="/check/{{ code.id }}">
-                        <input type="text"
-                               name="decoded_text"
+                <span class="card-number">#{{ code.number }}</span>
+                
+                {% if code.solved %}
+                    <div class="success-message">✅ Успешно разгадано!</div>
+                    <button class="toggle-btn">▼ Показать ответ</button>
+                    <div class="answer-block">
+                        <input type="text" 
+                               value="{{ answers[code.number] }}" 
+                               id="answer-{{ code.id }}"
+                               readonly>
+                        <button class="copy-btn">Копировать</button>
+                    </div>
+                {% else %}
+                    <form method="POST" action="{{ url_for('check', code_id=code.id) }}">
+                        <input type="text" 
+                               name="decoded_text" 
                                placeholder="Введите текст"
-                               {% if code.solved %}value="{{ CORRECT_ANSWERS[code.number] }}"{% endif %}>
+                               required>
                         <button type="submit">Проверить</button>
                     </form>
-                {% else %}
-                    <div class="success">Успех! 🎉</div>
                 {% endif %}
             </div>
         {% endfor %}
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
