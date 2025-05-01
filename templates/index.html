@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Morse Code Puzzle</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Разгадай код Морзе! 🎁</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="grid">
+        {% for code in codes %}
+            <div class="card {{ 'solved' if code.solved }}">
+                <span>#{{ code.number }}</span>
+                {% if not code.solved %}
+                    <form method="POST" action="/check/{{ code.id }}">
+                        <input type="text"
+                               name="decoded_text"
+                               placeholder="Введите текст"
+                               {% if code.solved %}value="{{ CORRECT_ANSWERS[code.number] }}"{% endif %}>
+                        <button type="submit">Проверить</button>
+                    </form>
+                {% else %}
+                    <div class="success">Успех! 🎉</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
