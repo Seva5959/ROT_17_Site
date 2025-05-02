@@ -27,16 +27,29 @@ with app.app_context():
 @app.route('/', endpoint='main_index')
 @login_required
 def index():
+    # Здесь мы получаем все записи о прогрессе пользователя
     progress = UserProgress.query.filter_by(user_id=current_user.id).all()
-    return render_template('index.html', progress=progress, answers=CORRECT_ANSWERS)
+    # Получаем статусы всех кодов
+    codes = CodeStatus.query.all()
+    # Создаем словарь с информацией о решении для каждого кода
+    solved_dict = {p.code_id: p.solved for p in progress}
+    # Обновляем статус решения для каждого кода
+    for code in codes:
+        code.solved = solved_dict.get(code.id, False)
+
+    return render_template('index.html', codes=codes, answers=CORRECT_ANSWERS)
 
 
 @app.route('/check/<int:code_id>', methods=['POST'])
 @login_required
 def check(code_id):
     user_input = request.form['decoded_text'].strip()
-    correct_answer = CORRECT_ANSWERS.get(code_id)
-
+    # Получаем код по его номеру в базе
+    code = CodeStatus.query.get(code_id)
+    if not code:
+        flash('❌ Код не найден')
+        return redirect(url_for('main_index'))
+    correct_answer = CORRECT_ANSWERS.get(code.number)  # Используем code.number вместо code_id
     progress = UserProgress.query.filter_by(
         user_id=current_user.id,
         code_id=code_id
@@ -59,7 +72,6 @@ def check(code_id):
 
     return redirect(url_for('main_index'))
 
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -76,7 +88,7 @@ def register():
         db.session.commit()
 
         login_user(user)
-        return redirect(url_for('index'))
+        return redirect(url_for('main_index'))
 
     return render_template('register.html')
 
