@@ -1,68 +1,61 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Находим все кнопки переключения
-    const toggleButtons = document.querySelectorAll('.toggle-btn');
-
-    // Добавляем обработчик для каждой кнопки
-    toggleButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const answerBlock = this.nextElementSibling;
-            const isHidden = answerBlock.style.maxHeight === '0px' ||
-                           !answerBlock.style.maxHeight;
-
-            // Плавное раскрытие/скрытие
-            if (isHidden) {
-                answerBlock.style.maxHeight = answerBlock.scrollHeight + 'px';
-                this.textContent = '▲ Скрыть';
-            } else {
-                answerBlock.style.maxHeight = '0';
-                this.textContent = '▼ Показать ответ';
-            }
-        });
-    });
-
-    // Обработчики для кнопок копирования
-    document.querySelectorAll('.copy-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const input = this.previousElementSibling;
-            input.select();
-            document.execCommand('copy');
-
-            // Создаем уведомление
-            const notification = document.createElement('div');
-            notification.className = 'copy-notification';
-            notification.textContent = 'Скопировано!';
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.remove();
-            }, 2000);
-        });
-    });
-});
-
-// Обработчики для раскрытия блоков
-document.addEventListener('DOMContentLoaded', function() {
-    // Делегирование событий для динамически созданных элементов
+    // Обработка кнопок переключения
     document.body.addEventListener('click', function(e) {
+        // Раскрытие/скрытие ответов
         if (e.target.classList.contains('toggle-btn')) {
             const answerBlock = e.target.nextElementSibling;
-            answerBlock.style.display =
-                answerBlock.style.display === 'block' ? 'none' : 'block';
-            e.target.textContent =
-                answerBlock.style.display === 'block' ? '▲ Скрыть' : '▼ Показать ответ';
+            const isHidden = answerBlock.style.maxHeight === '0px' || !answerBlock.style.maxHeight;
+
+            answerBlock.style.maxHeight = isHidden ? answerBlock.scrollHeight + 'px' : '0';
+            e.target.textContent = isHidden ? '▲ Скрыть' : '▼ Показать ответ';
         }
 
+        // Копирование текста
         if (e.target.classList.contains('copy-btn')) {
             const input = e.target.previousElementSibling;
             input.select();
             document.execCommand('copy');
-            alert('Скопировано: ' + input.value);
+
+            const notification = document.createElement('div');
+            notification.className = 'copy-notification';
+            notification.textContent = 'Скопировано: ' + input.value;
+            document.body.appendChild(notification);
+
+            setTimeout(() => notification.remove(), 2000);
         }
     });
-});
 
-document.querySelectorAll('nav a').forEach(link => {
-    link.addEventListener('click', (e) => {
-        console.log('Нажата ссылка:', e.target.href);
+    // Автоматическое скрытие временных сообщений
+    function setupFlashMessages() {
+        // Обрабатываем и сообщения об ошибках, и сообщения об успехе
+        const timedMessages = document.querySelectorAll('.alert-error_timed, .alert-success');
+
+        timedMessages.forEach(msg => {
+            // Устанавливаем начальную непрозрачность
+            msg.style.opacity = '1';
+
+            // Запускаем таймер
+            setTimeout(() => {
+                // Плавное исчезновение
+                msg.style.opacity = '0';
+
+                // Удаляем элемент после анимации
+                setTimeout(() => {
+                    if (msg.parentNode) {
+                        msg.parentNode.removeChild(msg);
+                    }
+                }, 500);
+            }, 3000);
+        });
+    }
+
+    // Вызываем функцию при загрузке страницы
+    setupFlashMessages();
+
+    // Логирование кликов по навигации (для отладки)
+    document.querySelectorAll('nav a').forEach(link => {
+        link.addEventListener('click', (e) => {
+            console.log('Навигация:', e.target.textContent, e.target.href);
+        });
     });
 });

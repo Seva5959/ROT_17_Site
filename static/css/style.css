@@ -1,3 +1,4 @@
+/* Общие стили для всего приложения */
 body {
     font-family: Arial, sans-serif;
     max-width: 800px;
@@ -6,6 +7,7 @@ body {
     background: #f0f8ff;
 }
 
+/* Базовые стили для сообщений */
 .alert {
     padding: 15px;
     margin: 20px 0;
@@ -22,6 +24,7 @@ body {
     color: #721c24;
 }
 
+/* Стили для сетки кодов */
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -40,6 +43,7 @@ body {
     background: #e6ffe6;
 }
 
+/* Стили для полей ввода и кнопок */
 input[type="text"] {
     width: 80%;
     padding: 8px;
@@ -67,6 +71,7 @@ button:hover {
   margin: 10px 0;
 }
 
+/* Стили для кнопки переключения */
 .toggle-btn {
     background: none;
     border: none;
@@ -80,6 +85,7 @@ button:hover {
     background-color: #f0f8ff;
 }
 
+/* Стили для блока с ответом */
 .answer-block {
     max-height: 0;
     overflow: hidden;
@@ -93,12 +99,7 @@ button:hover {
   border: 1px solid #ddd;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Анимации */
+/* Анимации для элементов */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
@@ -124,7 +125,7 @@ button:hover {
     transition: opacity 0.3s;
 }
 
-/* Кнопка раскрытия */
+/* Стили для кнопки переключения при наведении */
 .toggle-btn {
     transition: all 0.2s;
 }
@@ -133,7 +134,6 @@ button:hover {
     transform: scale(1.05);
     background-color: #e0f0ff;
 }
-
 
 /* Стили для форм авторизации */
 .auth-form {
@@ -172,4 +172,66 @@ nav a {
 
 nav a:hover {
     text-decoration: underline;
+}
+
+/* Контейнер для flash-сообщений */
+.flash-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    max-width: 300px;
+}
+
+/* Стили для сообщений с таймером */
+.alert-error_timed {
+    background-color: #ffebee;
+    color: #c62828;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+    transition: opacity 0.5s ease;
+    position: relative;
+    border-left: 4px solid #ef5350;
+    overflow: hidden;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    animation: fadeIn 0.3s ease;
+}
+
+/* Стили для успешных сообщений */
+.alert-success {
+    background: #d4edda;
+    color: #155724;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+    transition: opacity 0.5s ease;
+    position: relative;
+    border-left: 4px solid #28a745;
+    overflow: hidden;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    animation: fadeIn 0.3s ease;
+}
+
+/* Прогресс-бар для обоих типов сообщений */
+.alert-success .progress-bar {
+    background: #28a745;
+}
+
+.alert-error_timed .progress-bar {
+    background: #ef5350;
+}
+
+.progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: 100%;
+    animation: progress 3s linear forwards;
+}
+
+@keyframes progress {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
 }

@@ -66,9 +66,9 @@ def check(code_id):
         progress.solved = True
         progress.solved_at = datetime.utcnow()
         db.session.commit()
-        flash('✅ Правильно!')
+        flash('✅ Правильно!','success')
     else:
-        flash('❌ Неверно, попробуйте снова')
+        flash('❌ Неверно, попробуйте снова','error_timed')
 
     return redirect(url_for('main_index'))
 
