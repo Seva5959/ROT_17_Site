@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Данные пользователя{% endblock %}
+
+{% block content %}
+<div class="container admin-dashboard">
+    <h1>Данные пользователя: {{ user.username }}</h1>
+
+    <a href="{{ url_for('admin_dashboard') }}" class="back-btn">← Назад к панели администратора</a>
+
+    <div class="admin-section">
+        <h2>Прогресс по кодам</h2>
+        <div class="codes-grid">
+            {% for code in codes %}
+            {% set progress = progress_dict.get(code.id) %}
+            <div class="code-progress-card {{ 'solved' if progress and progress.solved else 'unsolved' }}">
+                <span class="code-number">#{{ code.number }}</span>
+                {% if progress and progress.solved %}
+                    <div class="status-badge solved">Решено</div>
+                    <div class="solved-time">
+                        Решено: {{ progress.solved_at.strftime('%d.%m.%Y %H:%M') if progress.solved_at else 'Нет данных' }}
+                    </div>
+                    <div class="correct-answer">
+                        Правильный ответ: <strong>{{ CORRECT_ANSWERS[code.number] }}</strong>
+                    </div>
+                {% else %}
+                    <div class="status-badge unsolved">Не решено</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="admin-section">
+        <h2>Успешные попытки</h2>
+        {% if successful_attempts %}
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Код #</th>
+                    <th>Ввод пользователя</th>
+                    <th>Время попытки</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in successful_attempts %}
+                <tr>
+                    <td>{{ attempt.code.number }}</td>
+                    <td>{{ attempt.input_text }}</td>
+                    <td>{{ attempt.attempt_time.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">Нет успешных попыток</p>
+        {% endif %}
+    </div>
+
+    <div class="admin-section">
+        <h2>Неудачные попытки</h2>
+        {% if unsuccessful_attempts %}
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Код #</th>
+                    <th>Ввод пользователя</th>
+                    <th>Правильный ответ</th>
+                    <th>Время попытки</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in unsuccessful_attempts %}
+                <tr>
+                    <td>{{ attempt.code.number }}</td>
+                    <td>{{ attempt.input_text }}</td>
+                    <td>{{ CORRECT_ANSWERS[attempt.code.number] }}</td>
+                    <td>{{ attempt.attempt_time.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">Нет неудачных попыток</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
-from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User
+from flask import Flask, render_template, request, redirect, url_for, flash, abort
+from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User, CodeAttempt
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime
+from sqlalchemy import desc
+
 
 app = Flask(__name__)
 app.secret_key = '8b9f28a56878e86e8eef3296ff8b050e2a23e2941bd555cc'
@@ -40,21 +42,24 @@ def index():
     return render_template('index.html', codes=codes, answers=CORRECT_ANSWERS)
 
 
+# Изменим функцию проверки, чтобы сохранять попытки
 @app.route('/check/<int:code_id>', methods=['POST'])
 @login_required
 def check(code_id):
     user_input = request.form['decoded_text'].strip()
-    # Получаем код по его номеру в базе
+    # Получаем код по его ID из базы данных
     code = CodeStatus.query.get(code_id)
     if not code:
         flash('❌ Код не найден')
         return redirect(url_for('main_index'))
-    correct_answer = CORRECT_ANSWERS.get(code.number)  # Используем code.number вместо code_id
+
+    correct_answer = CORRECT_ANSWERS.get(code.number)
     progress = UserProgress.query.filter_by(
         user_id=current_user.id,
         code_id=code_id
     ).first()
 
+    # Если прогресс по этому коду ещё не создан — создаём
     if not progress:
         progress = UserProgress(
             user_id=current_user.id,
@@ -62,12 +67,23 @@ def check(code_id):
         )
         db.session.add(progress)
 
+    # Сохраняем попытку в таблицу CodeAttempt
+    attempt = CodeAttempt(
+        user_id=current_user.id,
+        code_id=code_id,
+        input_text=user_input,
+        is_correct=(user_input == correct_answer),
+        attempt_time=datetime.utcnow()
+    )
+    db.session.add(attempt)
+
     if user_input == correct_answer:
         progress.solved = True
         progress.solved_at = datetime.utcnow()
         db.session.commit()
         flash('✅ Правильно!','success')
     else:
+        db.session.commit()  # Сохраняем даже неверные попытки
         flash('❌ Неверно, попробуйте снова','error_timed')
 
     return redirect(url_for('main_index'))
@@ -116,4 +132,67 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('main_index'))
+
+# Маршрут панели администратора
+@app.route('/admin/dashboard')
+@login_required
+def admin_dashboard():
+    if not current_user.is_admin:
+        abort(403)  # Запрет, если пользователь не админ
+
+    # Получаем всех пользователей для отображения на панели
+    users = User.query.all()
+    return render_template('admin/dashboard.html', users=users)
+
+# Маршрут подробностей по пользователю
+@app.route('/admin/user/<int:user_id>')
+@login_required
+def user_details(user_id):
+    if not current_user.is_admin:
+        abort(403)
+
+    user = User.query.get_or_404(user_id)
+    progress = UserProgress.query.filter_by(user_id=user_id).all()
+
+    # Получаем успешные и неуспешные попытки отдельно
+    successful_attempts = CodeAttempt.query.filter_by(
+        user_id=user_id,
+        is_correct=True
+    ).order_by(desc(CodeAttempt.attempt_time)).all()
+
+    unsuccessful_attempts = CodeAttempt.query.filter_by(
+        user_id=user_id,
+        is_correct=False
+    ).order_by(desc(CodeAttempt.attempt_time)).all()
+
+    # Получаем все коды (чтобы показать, какие решены, а какие — нет)
+    codes = CodeStatus.query.all()
+
+    # Создаём словарь: ID кода → прогресс пользователя
+    progress_dict = {p.code_id: p for p in progress}
+
+    return render_template('admin/user_details.html',
+                          user=user,
+                          codes=codes,
+                          progress_dict=progress_dict,
+                          successful_attempts=successful_attempts,
+                          unsuccessful_attempts=unsuccessful_attempts,
+                          CORRECT_ANSWERS=CORRECT_ANSWERS)
+
+# Маршрут для назначения пользователя администратором
+@app.route('/admin/create/<int:user_id>')
+@login_required
+def make_admin(user_id):
+    # Этот маршрут должен быть доступен только один раз — для создания первого админа
+    # После этого его нужно ограничить или удалить
+    if User.query.filter_by(is_admin=True).count() > 0:
+        # Если админ уже существует, то только админ может создать другого админа
+        if not current_user.is_admin:
+            abort(403)
+
+    user = User.query.get_or_404(user_id)
+    user.is_admin = True
+    db.session.commit()
+    flash(f'Пользователь {user.username} теперь администратор')
+    return redirect(url_for('admin_dashboard'))
 

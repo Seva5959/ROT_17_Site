@@ -27,6 +27,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True)
     password_hash = db.Column(db.String(128))
+    is_admin = db.Column(db.Boolean, default=False)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -50,5 +51,15 @@ class CodeStatus(db.Model):
     solved = db.Column(db.Boolean, default=False)
 
 
+class CodeAttempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    code_id = db.Column(db.Integer, db.ForeignKey('code_status.id'))
+    input_text = db.Column(db.String(200))  # Введённый пользователем текст
+    is_correct = db.Column(db.Boolean, default=False)  # Верна ли попытка
+    attempt_time = db.Column(db.DateTime)  # Время попытки
 
+    # Добавим связи для удобства в запросах
+    user = db.relationship('User', backref=db.backref('attempts', lazy=True))
+    code = db.relationship('CodeStatus', backref=db.backref('attempts', lazy=True))
 
