@@ -4,12 +4,12 @@
 
 {% block content %}
 <div class="container">
-    <h1>Разгадай код к подарку! 🎂</h1>
+    <h1>Проверь разгаданный шифр! </h1>
     
     <div class="grid">
         {% for code in codes %}
             <div class="card {{ 'solved' if code.solved }}">
-                <span class="card-number">#{{ code.number }}</span>
+                <span class="card-number">{{ code.roman_number }}</span>
                 
                 {% if code.solved %}
                     <div class="success-message">✅ Успешно разгадано!</div>

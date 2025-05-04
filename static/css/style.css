@@ -43,6 +43,12 @@ body {
     background: #e6ffe6;
 }
 
+.card-number {
+    font-style: italic;
+    font-weight: bold;
+    color: #5a3921; /* Коричневый для античного стиля */
+}
+
 /* Стили для полей ввода и кнопок */
 input[type="text"] {
     width: 80%;
