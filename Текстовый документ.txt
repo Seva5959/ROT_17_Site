@@ -1,4 +1,774 @@
 1) Когда появляется уведомление о том что все шифры разгаданы, кнопка скопировать не работает - надо исправить, также пусть появится уведомление, что ссылка скопирована.  
 2) Нужно перенести кнопку выйти в правый угол и сделать красным оттенком. 
 
-* Если пользователь ввел 3 раза подряд неправильную разгадку, то пусть появится иы
+* Если пользователь ввел 3 раза подряд неправильно должно появится следующие уведомление. Сперва появится картинка cat_1.png в формате квадрата - небольшое изображение. Под фотографией надпись "Не получается разгадать шифр?" и варианты ответа Вернуться к попытке                        Да. Если да. то появляется картинка cat_2.png. Все картинки в едином формате одинакового размера хранятся в папке \static\image. Под второй картинкой надпись "Вы уверены, что не допустили ошибки?"  и варианты ответа Вернуться к попытке                        Да. Если да, то появлется картинка cat_3.png. Под ней написано "Вы не забыли, что шифр включает верхний регистр?" и варинты ответа Вернуться к попытке                              Не забыла. Если не забыла, то появляется картинка cat_4.png и под ней надпись "Написать Админу?" и варианты ответа Вернуться к попытке                        Да. Нужно реализовать возможность отправить админу сообщение, чтобы админ увидел его в своей панеле. 
+
+Все сообщения и комментарии пиши на русском
+
+app.py 
+from flask import Flask, render_template, request, redirect, url_for, flash, abort
+from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User, CodeAttempt
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from datetime import datetime
+from sqlalchemy import desc
+
+
+app = Flask(__name__)
+app.secret_key = '8b9f28a56878e86e8eef3296ff8b050e2a23e2941bd555cc'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///codes.db'
+db.init_app(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+with app.app_context():
+    db.create_all()
+    if CodeStatus.query.count() == 0:
+        for i in range(1, 18):
+            db.session.add(CodeStatus(number=i))
+        db.session.commit()
+
+
+@app.route('/', endpoint='main_index')
+@login_required
+def index():
+    # Здесь мы получаем все записи о прогрессе пользователя
+    progress = UserProgress.query.filter_by(user_id=current_user.id).all()
+    # Получаем статусы всех кодов
+    codes = CodeStatus.query.all()
+    # Создаем словарь с информацией о решении для каждого кода
+    solved_dict = {p.code_id: p.solved for p in progress}
+    # Обновляем статус решения для каждого кода
+    for code in codes:
+        code.solved = solved_dict.get(code.id, False)
+        code.roman_number = to_roman(code.number)
+
+    # Проверяем, решены ли все загадки
+    all_solved = all(code.solved for code in codes)
+
+    # Если все решены, составляем полную ссылку
+    full_link = ""
+    if all_solved:
+        # Собираем все части ссылки в правильном порядке
+        for i in range(1, 18):  # От 1 до 17
+            full_link += CORRECT_ANSWERS.get(i, "")
+
+    return render_template('index.html', codes=codes, answers=CORRECT_ANSWERS,
+                           all_solved=all_solved, full_link=full_link)
+
+# Изменим функцию проверки, чтобы сохранять попытки
+@app.route('/check/<int:code_id>', methods=['POST'])
+@login_required
+def check(code_id):
+    user_input = request.form['decoded_text'].strip()
+    # Получаем код по его ID из базы данных
+    code = CodeStatus.query.get(code_id)
+    if not code:
+        flash('❌ Код не найден')
+        return redirect(url_for('main_index'))
+
+    correct_answer = CORRECT_ANSWERS.get(code.number)
+    progress = UserProgress.query.filter_by(
+        user_id=current_user.id,
+        code_id=code_id
+    ).first()
+
+    # Если прогресс по этому коду ещё не создан — создаём
+    if not progress:
+        progress = UserProgress(
+            user_id=current_user.id,
+            code_id=code_id
+        )
+        db.session.add(progress)
+
+    # Сохраняем попытку в таблицу CodeAttempt
+    attempt = CodeAttempt(
+        user_id=current_user.id,
+        code_id=code_id,
+        input_text=user_input,
+        is_correct=(user_input == correct_answer),
+        attempt_time=datetime.utcnow()
+    )
+    db.session.add(attempt)
+
+    if user_input == correct_answer:
+        progress.solved = True
+        progress.solved_at = datetime.utcnow()
+        db.session.commit()
+        flash('✅ Правильно!','success')
+    else:
+        db.session.commit()  # Сохраняем даже неверные попытки
+        flash('❌ Неверно, попробуйте снова','error_timed')
+
+    return redirect(url_for('main_index'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        if User.query.filter_by(username=username).first():
+            flash('Имя пользователя уже занято')
+            return redirect(url_for('register'))
+
+        user = User(username=username)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        login_user(user)
+        return redirect(url_for('main_index'))
+
+    return render_template('register.html')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        user = User.query.filter_by(username=username).first()
+
+        if not user or not user.check_password(password):
+            flash('Неверное имя пользователя или пароль')
+            return redirect(url_for('login'))
+
+        login_user(user)
+        return redirect(url_for('main_index'))
+
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('main_index'))
+
+# Маршрут панели администратора
+@app.route('/admin/dashboard')
+@login_required
+def admin_dashboard():
+    if not current_user.is_admin:
+        abort(403)  # Запрет, если пользователь не админ
+
+    # Получаем всех пользователей для отображения на панели
+    users = User.query.all()
+    return render_template('admin/dashboard.html', users=users)
+
+# Маршрут подробностей по пользователю
+@app.route('/admin/user/<int:user_id>')
+@login_required
+def user_details(user_id):
+    if not current_user.is_admin:
+        abort(403)
+
+    user = User.query.get_or_404(user_id)
+    progress = UserProgress.query.filter_by(user_id=user_id).all()
+
+    # Получаем успешные и неуспешные попытки отдельно
+    successful_attempts = CodeAttempt.query.filter_by(
+        user_id=user_id,
+        is_correct=True
+    ).order_by(desc(CodeAttempt.attempt_time)).all()
+
+    unsuccessful_attempts = CodeAttempt.query.filter_by(
+        user_id=user_id,
+        is_correct=False
+    ).order_by(desc(CodeAttempt.attempt_time)).all()
+
+    # Получаем все коды (чтобы показать, какие решены, а какие — нет)
+    codes = CodeStatus.query.all()
+
+    # Создаём словарь: ID кода → прогресс пользователя
+    progress_dict = {p.code_id: p for p in progress}
+
+    return render_template('admin/user_details.html',
+                          user=user,
+                          codes=codes,
+                          progress_dict=progress_dict,
+                          successful_attempts=successful_attempts,
+                          unsuccessful_attempts=unsuccessful_attempts,
+                          CORRECT_ANSWERS=CORRECT_ANSWERS)
+
+
+@app.route('/admin/remove/<int:user_id>')
+@login_required
+def remove_admin(user_id):
+    if not current_user.is_admin:
+        abort(403)
+
+    if user_id == current_user.id:
+        flash('Вы не можете удалить свои права администратора')
+        return redirect(url_for('admin_dashboard'))
+
+    user = User.query.get_or_404(user_id)
+    user.is_admin = False
+    db.session.commit()
+    flash(f'Пользователь {user.username} больше не администратор')
+    return redirect(url_for('admin_dashboard'))
+
+# Сбросить всех админов
+@app.route('/admin/reset')
+@login_required
+def reset_all_admins():
+    # Осторожно: сбрасывает права у всех
+    User.query.update({User.is_admin: False})
+    db.session.commit()
+    flash('Все права администраторов сброшены')
+    return redirect(url_for('main_index'))
+
+
+# Маршрут для назначения пользователя администратором
+@app.route('/admin/create/<int:user_id>')
+@login_required
+def make_admin(user_id):
+    # Этот маршрут должен быть доступен только один раз — для создания первого админа
+    # После этого его нужно ограничить или удалить
+    if User.query.filter_by(is_admin=True).count() > 0:
+        # Если админ уже существует, то только админ может создать другого админа
+        if not current_user.is_admin:
+            abort(403)
+
+    user = User.query.get_or_404(user_id)
+    user.is_admin = True
+    db.session.commit()
+    flash(f'Пользователь {user.username} теперь администратор')
+    return redirect(url_for('admin_dashboard'))
+
+def to_roman(num):
+    val = [
+        1000, 900, 500, 400,
+        100, 90, 50, 40,
+        10, 9, 5, 4, 1
+    ]
+    syb = [
+        "M", "CM", "D", "CD",
+        "C", "XC", "L", "XL",
+        "X", "IX", "V", "IV", "I"
+    ]
+    roman_num = ''
+    i = 0
+    while num > 0:
+        for _ in range(num // val[i]):
+            roman_num += syb[i]
+            num -= val[i]
+        i += 1
+    return roman_num
+
+models.py 
+
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+
+db = SQLAlchemy()
+CORRECT_ANSWERS = {
+    1: "https:/",
+    2: "/docs.",
+    3: "google.",
+    4: "com/doc",
+    5: "ument/d/",
+    6: "1gG4e",
+    7: "Xhu9",
+    8: "-l3V",
+    9: "hYGGS",
+    10: "wP0a",
+    11: "VoDuih",
+    12: "ju2Snf",
+    13: "1XDQ5",
+    14: "rQcwc/",
+    15: "edit?usp",
+    16: "=sharing",
+    17: "6209"
+}
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), unique=True)
+    password_hash = db.Column(db.String(128))
+    is_admin = db.Column(db.Boolean, default=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+
+class UserProgress(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    code_id = db.Column(db.Integer, db.ForeignKey('code_status.id'))
+    solved = db.Column(db.Boolean, default=False)
+    solved_at = db.Column(db.DateTime)
+
+
+
+class CodeStatus(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.Integer, unique=True)
+    solved = db.Column(db.Boolean, default=False)
+
+
+class CodeAttempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    code_id = db.Column(db.Integer, db.ForeignKey('code_status.id'))
+    input_text = db.Column(db.String(200))  # Введённый пользователем текст
+    is_correct = db.Column(db.Boolean, default=False)  # Верна ли попытка
+    attempt_time = db.Column(db.DateTime)  # Время попытки
+
+    # Добавим связи для удобства в запросах
+    user = db.relationship('User', backref=db.backref('attempts', lazy=True))
+    code = db.relationship('CodeStatus', backref=db.backref('attempts', lazy=True))
+
+style.css показывать не буду, так там более 800 строк кода.
+
+base.html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Морзе-Квест{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main_index') }}" class="nav-link">Главная</a>
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-link {{ 'admin-link' if current_user.is_admin else 'disabled-link' }}">
+                    Админ панель
+                    {% if not current_user.is_admin %}
+                    <span class="tooltip">Требуются права администратора</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('logout') }}" class="nav-link">Выйти ({{ current_user.username }})</a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="nav-link">Войти</a>
+                <a href="{{ url_for('register') }}" class="nav-link">Регистрация</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <!-- Единый блок для flash-сообщений -->
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                        {% if category == 'error_timed' or category == 'success' %}
+                            <div class="progress-bar"></div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Скрипты подключаются перед закрывающим тегом body -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <!-- Инициализация JS-функционала -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Инициализация всех JS-компонентов
+            if (typeof initApp === 'function') {
+                initApp();
+            }
+        });
+    </script>
+</body>
+</html>
+
+index.html
+{% extends "base.html" %}
+
+{% block title %}Разгадай код{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Проверь разгаданный шифр!</h1>
+
+    <!-- Блок поздравления (появляется только когда все решено) -->
+    {% if all_solved %}
+    <div class="congratulations-container" id="congratsContainer" style="display: none; opacity: 0;">
+        <div class="congratulations-card">
+            <div class="confetti-container">
+                {% for _ in range(10) %}<div class="confetti"></div>{% endfor %}
+            </div>
+            <h2>🎉 Поздравляем! 🎉</h2>
+            <p>Вы успешно разгадали все шифры!</p>
+            <div class="full-link-container">
+                <p>Вот полная ссылка:</p>
+                <div class="full-link-box">
+                    <input type="text" id="fullLink" value="{{ full_link }}" readonly>
+                    <button onclick="copyToClipboard('fullLink')">Копировать</button>
+                </div>
+                <span class="copy-success-message" style="display:none;">Ссылка скопирована!</span>
+            </div>
+            <button class="close-btn" onclick="toggleCongrats(false)">Закрыть</button>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid">
+        {% for code in codes %}
+            <div class="card {{ 'solved' if code.solved }}">
+                <span class="card-number">{{ code.roman_number }}</span>
+
+                {% if code.solved %}
+                    <div class="success-message">✅ Успешно разгадано!</div>
+                    <button class="toggle-btn">▼ Показать ответ</button>
+                    <div class="answer-block">
+                        <input type="text"
+                               value="{{ answers[code.number] }}"
+                               id="answer-{{ code.id }}"
+                               readonly>
+                        <button class="copy-btn" onclick="copyToClipboard('answer-{{ code.id }}')">
+                            Копировать
+                        </button>
+                    </div>
+                {% else %}
+                    <form method="POST" action="{{ url_for('check', code_id=code.id) }}">
+                        <input type="text"
+                               name="decoded_text"
+                               placeholder="Введите текст"
+                               required>
+                        <button type="submit">Проверить</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Блок с полной ссылкой (только когда все решено) -->
+    {% if all_solved %}
+    <div class="complete-link-section">
+        <h3>Полная ссылка:</h3>
+        <div class="full-link-box">
+            <input type="text" id="permanentLink" value="{{ full_link }}" readonly>
+            <button onclick="copyToClipboard('permanentLink')">Копировать</button>
+        </div>
+        <span class="copy-success" id="permanentLinkSuccess" style="display:none;">Ссылка скопирована!</span>
+        <button class="show-congrats-btn" onclick="toggleCongrats(true)">Показать поздравление</button>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Универсальная функция копирования
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    element.select();
+    document.execCommand('copy');
+
+    // Показываем уведомление
+    let notification;
+    if (elementId === 'permanentLink') {
+        notification = document.getElementById('permanentLinkSuccess');
+    } else {
+        const parent = element.closest('.full-link-box, .answer-block');
+        notification = parent.nextElementSibling;
+    }
+
+    if (notification) {
+        notification.style.display = 'block';
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 2000);
+    }
+}
+
+// Показ/скрытие поздравления
+function toggleCongrats(show) {
+    const container = document.getElementById('congratsContainer');
+    if (container) {
+        if (show) {
+            container.style.display = 'flex';
+            // Добавляем небольшую задержку для плавной анимации
+            setTimeout(() => {
+                container.style.opacity = '1';
+            }, 10);
+        } else {
+            container.style.opacity = '0';
+            setTimeout(() => {
+                container.style.display = 'none';
+            }, 500);
+        }
+    }
+}
+
+// Автопоказ при загрузке если все решено
+{% if all_solved %}
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => toggleCongrats(true), 500);
+});
+{% endif %}
+</script>
+{% endblock %}
+
+main.js
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработка кнопок переключения
+    document.body.addEventListener('click', function(e) {
+        // Раскрытие/скрытие ответов
+        if (e.target.classList.contains('toggle-btn')) {
+            const answerBlock = e.target.nextElementSibling;
+            const isHidden = answerBlock.style.maxHeight === '0px' || !answerBlock.style.maxHeight;
+
+            answerBlock.style.maxHeight = isHidden ? answerBlock.scrollHeight + 'px' : '0';
+            e.target.textContent = isHidden ? '▲ Скрыть' : '▼ Показать ответ';
+        }
+
+        // Копирование текста
+        if (e.target.classList.contains('copy-btn')) {
+            const input = e.target.previousElementSibling;
+            input.select();
+            document.execCommand('copy');
+
+            const notification = document.createElement('div');
+            notification.className = 'copy-notification';
+            notification.textContent = 'Скопировано: ' + input.value;
+            document.body.appendChild(notification);
+
+            setTimeout(() => notification.remove(), 2000);
+        }
+    });
+
+    // Автоматическое скрытие временных сообщений
+    function setupFlashMessages() {
+        // Обрабатываем и сообщения об ошибках, и сообщения об успехе
+        const timedMessages = document.querySelectorAll('.alert-error_timed, .alert-success');
+
+        timedMessages.forEach(msg => {
+            // Устанавливаем начальную непрозрачность
+            msg.style.opacity = '1';
+
+            // Запускаем таймер
+            setTimeout(() => {
+                // Плавное исчезновение
+                msg.style.opacity = '0';
+
+                // Удаляем элемент после анимации
+                setTimeout(() => {
+                    if (msg.parentNode) {
+                        msg.parentNode.removeChild(msg);
+                    }
+                }, 500);
+            }, 3000);
+        });
+    }
+
+    // Вызываем функцию при загрузке страницы
+    setupFlashMessages();
+
+    // Проверка на все решенные коды
+    function checkAllSolved() {
+        const cards = document.querySelectorAll('.card');
+        const allSolved = Array.from(cards).every(card => card.classList.contains('solved'));
+        return allSolved;
+    }
+
+    // Если все коды решены, показываем поздравление
+    if (checkAllSolved()) {
+        // Дополнительная проверка на наличие контейнера поздравления
+        const congratsContainer = document.getElementById('congratsContainer');
+        if (congratsContainer) {
+            setTimeout(() => {
+                toggleCongrats(true);
+            }, 500);
+        }
+    }
+
+    // Функция для управления окном поздравления
+    window.toggleCongrats = function(show) {
+        const container = document.getElementById('congratsContainer');
+        if (container) {
+            if (show) {
+                container.style.display = 'flex';
+                // Добавляем небольшую задержку для плавной анимации
+                setTimeout(() => {
+                    container.style.opacity = '1';
+                }, 10);
+            } else {
+                container.style.opacity = '0';
+                setTimeout(() => {
+                    container.style.display = 'none';
+                }, 500);
+            }
+        }
+    };
+
+    // Логирование кликов по навигации (для отладки)
+    document.querySelectorAll('nav a').forEach(link => {
+        link.addEventListener('click', (e) => {
+            console.log('Навигация:', e.target.textContent, e.target.href);
+        });
+    });
+});
+
+dashboard.html
+{% extends "base.html" %}
+
+{% block title %}Панель администратора{% endblock %}
+
+{% block content %}
+<div class="container admin-dashboard">
+    <h1>Панель администратора</h1>
+
+    <div class="admin-section">
+        <h2>Управление администраторами</h2>
+        <div class="admin-controls">
+            <a href="{{ url_for('reset_all_admins') }}" class="admin-btn danger-btn" onclick="return confirm('Вы уверены, что хотите сбросить всех администраторов? После этого вам нужно будет заново назначить администратора.')">
+                Сбросить всех администраторов
+            </a>
+            <p class="admin-note">
+                <strong>Важно:</strong> После сброса администраторов, перейдите по адресу <code>/admin/create/ID</code>, где ID - это ID пользователя, которого вы хотите сделать администратором.
+            </p>
+        </div>
+    </div>
+
+    <div class="admin-section">
+        <h2>Пользователи</h2>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Имя пользователя</th>
+                    <th>Решено шифров</th>
+                    <th>Всего попыток</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.progress|selectattr('solved', 'eq', true)|list|length }}</td>
+                    <td>{{ user.attempts|length }}</td>
+                    <td>
+                        <a href="{{ url_for('user_details', user_id=user.id) }}" class="admin-btn">Подробнее</a>
+                        {% if not user.is_admin %}
+                        <a href="{{ url_for('make_admin', user_id=user.id) }}" class="admin-btn admin-make-admin">Сделать админом</a>
+                        {% else %}
+                        <span class="admin-badge">Администратор</span>
+                        {% if user.id != current_user.id %}
+                        <a href="{{ url_for('remove_admin', user_id=user.id) }}" class="admin-btn danger-btn">Удалить права</a>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+
+user_details.html
+{% extends "base.html" %}
+
+{% block title %}Данные пользователя{% endblock %}
+
+{% block content %}
+<div class="container admin-dashboard">
+    <h1>Данные пользователя: {{ user.username }}</h1>
+
+    <a href="{{ url_for('admin_dashboard') }}" class="back-btn">← Назад к панели администратора</a>
+
+    <div class="admin-section">
+        <h2>Прогресс по кодам</h2>
+        <div class="codes-grid">
+            {% for code in codes %}
+            {% set progress = progress_dict.get(code.id) %}
+            <div class="code-progress-card {{ 'solved' if progress and progress.solved else 'unsolved' }}">
+                <span class="code-number">#{{ code.number }}</span>
+                {% if progress and progress.solved %}
+                    <div class="status-badge solved">Решено</div>
+                    <div class="solved-time">
+                        Решено: {{ progress.solved_at.strftime('%d.%m.%Y %H:%M') if progress.solved_at else 'Нет данных' }}
+                    </div>
+                    <div class="correct-answer">
+                        Правильный ответ: <strong>{{ CORRECT_ANSWERS[code.number] }}</strong>
+                    </div>
+                {% else %}
+                    <div class="status-badge unsolved">Не решено</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="admin-section">
+        <h2>Успешные попытки</h2>
+        {% if successful_attempts %}
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Код #</th>
+                    <th>Ввод пользователя</th>
+                    <th>Время попытки</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in successful_attempts %}
+                <tr>
+                    <td>{{ attempt.code.number }}</td>
+                    <td>{{ attempt.input_text }}</td>
+                    <td>{{ attempt.attempt_time.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">Нет успешных попыток</p>
+        {% endif %}
+    </div>
+
+    <div class="admin-section">
+        <h2>Неудачные попытки</h2>
+        {% if unsuccessful_attempts %}
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Код #</th>
+                    <th>Ввод пользователя</th>
+                    <th>Правильный ответ</th>
+                    <th>Время попытки</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in unsuccessful_attempts %}
+                <tr>
+                    <td>{{ attempt.code.number }}</td>
+                    <td>{{ attempt.input_text }}</td>
+                    <td>{{ CORRECT_ANSWERS[attempt.code.number] }}</td>
+                    <td>{{ attempt.attempt_time.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">Нет неудачных попыток</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
