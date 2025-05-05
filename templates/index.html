@@ -8,7 +8,7 @@
 
     <!-- Блок поздравления (появляется только когда все решено) -->
     {% if all_solved %}
-    <div class="congratulations-container" id="congratsContainer">
+    <div class="congratulations-container" id="congratsContainer" style="display: none; opacity: 0;">
         <div class="congratulations-card">
             <div class="confetti-container">
                 {% for _ in range(10) %}<div class="confetti"></div>{% endfor %}
@@ -21,8 +21,9 @@
                     <input type="text" id="fullLink" value="{{ full_link }}" readonly>
                     <button onclick="copyToClipboard('fullLink')">Копировать</button>
                 </div>
-                <div class="copy-success-message">Ссылка скопирована!</div>
+                <span class="copy-success-message" style="display:none;">Ссылка скопирована!</span>
             </div>
+            <button class="close-btn" onclick="toggleCongrats(false)">Закрыть</button>
         </div>
     </div>
     {% endif %}
@@ -59,12 +60,14 @@
 
     <!-- Блок с полной ссылкой (только когда все решено) -->
     {% if all_solved %}
-    <div class="permanent-link-section">
+    <div class="complete-link-section">
         <h3>Полная ссылка:</h3>
         <div class="full-link-box">
             <input type="text" id="permanentLink" value="{{ full_link }}" readonly>
             <button onclick="copyToClipboard('permanentLink')">Копировать</button>
         </div>
+        <span class="copy-success" id="permanentLinkSuccess" style="display:none;">Ссылка скопирована!</span>
+        <button class="show-congrats-btn" onclick="toggleCongrats(true)">Показать поздравление</button>
     </div>
     {% endif %}
 </div>
@@ -79,8 +82,13 @@ function copyToClipboard(elementId) {
     document.execCommand('copy');
 
     // Показываем уведомление
-    const notification = element.nextElementSibling?.querySelector('.copy-success-message') ||
-                         document.querySelector('.copy-success-message');
+    let notification;
+    if (elementId === 'permanentLink') {
+        notification = document.getElementById('permanentLinkSuccess');
+    } else {
+        const parent = element.closest('.full-link-box, .answer-block');
+        notification = parent.nextElementSibling;
+    }
 
     if (notification) {
         notification.style.display = 'block';
@@ -94,7 +102,18 @@ function copyToClipboard(elementId) {
 function toggleCongrats(show) {
     const container = document.getElementById('congratsContainer');
     if (container) {
-        container.style.display = show ? 'flex' : 'none';
+        if (show) {
+            container.style.display = 'flex';
+            // Добавляем небольшую задержку для плавной анимации
+            setTimeout(() => {
+                container.style.opacity = '1';
+            }, 10);
+        } else {
+            container.style.opacity = '0';
+            setTimeout(() => {
+                container.style.display = 'none';
+            }, 500);
+        }
     }
 }
 

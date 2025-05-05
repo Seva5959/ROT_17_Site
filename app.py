@@ -40,8 +40,18 @@ def index():
         code.solved = solved_dict.get(code.id, False)
         code.roman_number = to_roman(code.number)
 
-    return render_template('index.html', codes=codes, answers=CORRECT_ANSWERS)
+    # Проверяем, решены ли все загадки
+    all_solved = all(code.solved for code in codes)
 
+    # Если все решены, составляем полную ссылку
+    full_link = ""
+    if all_solved:
+        # Собираем все части ссылки в правильном порядке
+        for i in range(1, 18):  # От 1 до 17
+            full_link += CORRECT_ANSWERS.get(i, "")
+
+    return render_template('index.html', codes=codes, answers=CORRECT_ANSWERS,
+                           all_solved=all_solved, full_link=full_link)
 
 # Изменим функцию проверки, чтобы сохранять попытки
 @app.route('/check/<int:code_id>', methods=['POST'])

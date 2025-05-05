@@ -52,6 +52,43 @@ document.addEventListener('DOMContentLoaded', function() {
     // Вызываем функцию при загрузке страницы
     setupFlashMessages();
 
+    // Проверка на все решенные коды
+    function checkAllSolved() {
+        const cards = document.querySelectorAll('.card');
+        const allSolved = Array.from(cards).every(card => card.classList.contains('solved'));
+        return allSolved;
+    }
+
+    // Если все коды решены, показываем поздравление
+    if (checkAllSolved()) {
+        // Дополнительная проверка на наличие контейнера поздравления
+        const congratsContainer = document.getElementById('congratsContainer');
+        if (congratsContainer) {
+            setTimeout(() => {
+                toggleCongrats(true);
+            }, 500);
+        }
+    }
+
+    // Функция для управления окном поздравления
+    window.toggleCongrats = function(show) {
+        const container = document.getElementById('congratsContainer');
+        if (container) {
+            if (show) {
+                container.style.display = 'flex';
+                // Добавляем небольшую задержку для плавной анимации
+                setTimeout(() => {
+                    container.style.opacity = '1';
+                }, 10);
+            } else {
+                container.style.opacity = '0';
+                setTimeout(() => {
+                    container.style.display = 'none';
+                }, 500);
+            }
+        }
+    };
+
     // Логирование кликов по навигации (для отладки)
     document.querySelectorAll('nav a').forEach(link => {
         link.addEventListener('click', (e) => {
