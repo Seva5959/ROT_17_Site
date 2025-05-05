@@ -10,17 +10,29 @@
     <header>
         <nav>
             {% if current_user.is_authenticated %}
-                <a href="{{ url_for('main_index') }}" class="nav-link">Главная</a>
-                <a href="{{ url_for('admin_dashboard') }}" class="nav-link {{ 'admin-link' if current_user.is_admin else 'disabled-link' }}">
-                    Админ панель
-                    {% if not current_user.is_admin %}
-                    <span class="tooltip">Требуются права администратора</span>
+                <div class="nav-left">
+                    <a href="{{ url_for('main_index') }}" class="nav-link">Главная</a>
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link {{ 'admin-link' if current_user.is_admin else 'disabled-link' }}">
+                        Админ панель
+                        {% if not current_user.is_admin %}
+                        <span class="tooltip">Требуются права администратора</span>
+                        {% endif %}
+                    </a>
+                    {% if current_user.is_admin %}
+                    <a href="{{ url_for('admin_messages') }}" class="nav-link admin-link">
+                        Сообщения
+                        <span class="message-count" id="messageCount"></span>
+                    </a>
                     {% endif %}
-                </a>
-                <a href="{{ url_for('logout') }}" class="nav-link">Выйти ({{ current_user.username }})</a>
+                </div>
+                <div class="nav-right">
+                    <a href="{{ url_for('logout') }}" class="nav-link logout-btn">Выйти ({{ current_user.username }})</a>
+                </div>
             {% else %}
-                <a href="{{ url_for('login') }}" class="nav-link">Войти</a>
-                <a href="{{ url_for('register') }}" class="nav-link">Регистрация</a>
+                <div class="nav-left">
+                    <a href="{{ url_for('login') }}" class="nav-link">Войти</a>
+                    <a href="{{ url_for('register') }}" class="nav-link">Регистрация</a>
+                </div>
             {% endif %}
         </nav>
     </header>
@@ -30,16 +42,35 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">
-                        {{ message }}
-                        {% if category == 'error_timed' or category == 'success' %}
-                            <div class="progress-bar"></div>
-                        {% endif %}
-                    </div>
+                    {% if not 'hint' in category %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                            {% if category == 'error_timed' or category == 'success' %}
+                                <div class="progress-bar"></div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 {% endfor %}
             {% endif %}
         {% endwith %}
     </div>
+
+    <!-- Контейнер для подсказок с картинками -->
+    <div id="hintModal" class="hint-modal">
+        <div class="hint-content">
+            <img id="hintImage" src="" alt="Подсказка">
+            <p id="hintText"></p>
+            <div class="hint-buttons">
+                <button id="hintBack">Вернуться к попытке</button>
+                <button id="hintNext">Да</button>
+            </div>
+            <div id="adminMessageForm" style="display: none;">
+                <textarea id="adminMessageText" placeholder="Опишите проблему..."></textarea>
+                <button id="sendAdminMessage">Отправить сообщение</button>
+            </div>
+        </div>
+    </div>
+
     <main>
         {% block content %}{% endblock %}
     </main>
@@ -54,7 +85,43 @@
             if (typeof initApp === 'function') {
                 initApp();
             }
+
+            // Проверяем flash-сообщения на наличие подсказок
+            {% with hint_messages = get_flashed_messages(category_filter=["hint"]) %}
+                {% if hint_messages %}
+                    {% for hint in hint_messages %}
+                        const hintParts = "{{ hint }}".split('|');
+                        if (hintParts[0] === 'show_hint') {
+                            showHint(1, hintParts[1]); // Начинаем с первой подсказки
+                        }
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            // Обновляем счетчик непрочитанных сообщений для админа
+            {% if current_user.is_authenticated and current_user.is_admin %}
+                updateMessageCount();
+                // Обновляем счетчик каждые 30 секунд
+                setInterval(updateMessageCount, 30000);
+            {% endif %}
         });
+
+        // Функция для получения количества непрочитанных сообщений
+        function updateMessageCount() {
+            fetch('/admin/unread_messages_count')
+                .then(response => response.json())
+                .then(data => {
+                    const messageCount = document.getElementById('messageCount');
+                    if (data.count > 0) {
+                        messageCount.textContent = data.count;
+                        messageCount.style.display = 'inline-block';
+                    } else {
+                        messageCount.style.display = 'none';
+                    }
+                });
+        }
     </script>
+
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

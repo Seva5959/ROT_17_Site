@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Просмотр сообщения{% endblock %}
+
+{% block content %}
+<div class="container admin-dashboard">
+    <h1>Просмотр сообщения</h1>
+
+    <a href="{{ url_for('admin_messages') }}" class="back-btn">← Назад к списку сообщений</a>
+
+    <div class="admin-section message-details">
+        <div class="message-header">
+            <div class="message-meta">
+                <p><strong>От пользователя:</strong> {{ message.user.username }}</p>
+                <p><strong>Дата отправки:</strong> {{ message.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</p>
+                <p><strong>Код #:</strong> {{ message.code.number }}</p>
+            </div>
+        </div>
+
+        <div class="message-body">
+            <h3>Сообщение:</h3>
+            <div class="message-text">
+                {{ message.message }}
+            </div>
+        </div>
+
+        <div class="user-progress-section">
+            <h3>Прогресс пользователя с этим кодом</h3>
+            {% set progress = message.user.progress|selectattr('code_id', 'eq', message.code.id)|first %}
+
+            {% if progress and progress.solved %}
+                <p class="status solved">Пользователь уже решил этот код</p>
+                <p>Дата решения: {{ progress.solved_at.strftime('%d.%m.%Y %H:%M') }}</p>
+            {% else %}
+                <p class="status unsolved">Код еще не решен</p>
+
+                <h4>Последние попытки:</h4>
+                {% set attempts = message.user.attempts|selectattr('code_id', 'eq', message.code.id)|list %}
+
+                {% if attempts %}
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Ввод пользователя</th>
+                                <th>Правильный ответ</th>
+                                <th>Результат</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attempt in (attempts|sort(attribute='attempt_time', reverse=True))[:5] %}
+                                <tr>
+                                    <td>{{ attempt.attempt_time.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                                    <td>{{ attempt.input_text }}</td>
+                                    <td>{{ message[message.code.number] }}</td>
+                                    <td>
+                                        {% if attempt.is_correct %}
+                                        <span class="status correct">Верно</span>
+                                        {% else %}
+                                        <span class="status incorrect">Неверно</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="no-data">У пользователя нет попыток решения этого кода</p>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="admin-actions">
+            <a href="mailto:{{ message.user.email }}" class="admin-btn email-btn">Написать пользователю</a>
+            <a href="{{ url_for('admin_messages') }}" class="admin-btn">Назад к списку</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

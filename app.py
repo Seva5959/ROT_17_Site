@@ -1,9 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, abort
-from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User, CodeAttempt
+from flask import Flask, render_template, request, redirect, url_for, flash, abort, jsonify
+from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User, CodeAttempt, AdminMessage
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime
 from sqlalchemy import desc
-
 
 app = Flask(__name__)
 app.secret_key = '8b9f28a56878e86e8eef3296ff8b050e2a23e2941bd555cc'
@@ -92,10 +91,15 @@ def check(code_id):
         progress.solved = True
         progress.solved_at = datetime.utcnow()
         db.session.commit()
-        flash('✅ Правильно!','success')
+        flash('✅ Правильно!', 'success')
     else:
         db.session.commit()  # Сохраняем даже неверные попытки
-        flash('❌ Неверно, попробуйте снова','error_timed')
+        flash('❌ Неверно, попробуйте снова', 'error_timed')
+
+        # Проверяем, было ли 3 неудачных попытки подряд
+        if check_consecutive_failures(code_id):
+            # Передаем информацию о том, что нужно показать подсказку
+            flash('show_hint|' + str(code_id), 'hint')
 
     return redirect(url_for('main_index'))
 
@@ -254,3 +258,94 @@ def to_roman(num):
             num -= val[i]
         i += 1
     return roman_num
+
+
+def check_consecutive_failures(code_id):
+    # Получаем последние 3 попытки пользователя по этому коду
+    recent_attempts = CodeAttempt.query.filter_by(
+        user_id=current_user.id,
+        code_id=code_id,
+        is_correct=False
+    ).order_by(desc(CodeAttempt.attempt_time)).limit(3).all()
+
+    # Если не набралось 3 попытки, значит точно не 3 подряд
+    if len(recent_attempts) < 3:
+        return False
+
+    # Проверяем, есть ли успешные попытки между неудачными
+    last_success = CodeAttempt.query.filter_by(
+        user_id=current_user.id,
+        code_id=code_id,
+        is_correct=True
+    ).order_by(desc(CodeAttempt.attempt_time)).first()
+
+    # Если нет успешных или последняя успешная старше самой старой из 3 неудачных
+    if not last_success or last_success.attempt_time < recent_attempts[-1].attempt_time:
+        return True
+
+    return False
+
+
+@app.route('/send_message_to_admin', methods=['POST'])
+@login_required
+def send_message_to_admin():
+    code_id = request.form.get('code_id')
+    message = request.form.get('message')
+
+    if not code_id or not message:
+        return jsonify({'success': False, 'error': 'Не указан код или сообщение'})
+
+    admin_message = AdminMessage(
+        user_id=current_user.id,
+        code_id=code_id,
+        message=message,
+        created_at=datetime.utcnow()
+    )
+
+    db.session.add(admin_message)
+    db.session.commit()
+
+    return jsonify({'success': True})
+
+
+@app.route('/admin/messages')
+@login_required
+def admin_messages():
+    if not current_user.is_admin:
+        abort(403)
+
+    messages = AdminMessage.query.order_by(desc(AdminMessage.created_at)).all()
+    return render_template('admin/messages.html', messages=messages)
+
+
+@app.route('/admin/message/<int:message_id>')
+@login_required
+def view_message(message_id):
+    if not current_user.is_admin:
+        abort(403)
+
+    message = AdminMessage.query.get_or_404(message_id)
+    message.read = True
+    db.session.commit()
+
+    return render_template('admin/message_details.html', message=message)
+
+
+# Добавьте этот маршрут в app.py
+@app.route('/admin/unread_messages_count')
+@login_required
+def unread_messages_count():
+    if not current_user.is_admin:
+        return jsonify({'count': 0})
+
+    count = AdminMessage.query.filter_by(read=False).count()
+    return jsonify({'count': count})
+
+
+
+
+
+
+
+
+

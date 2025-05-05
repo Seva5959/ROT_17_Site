@@ -63,3 +63,15 @@ class CodeAttempt(db.Model):
     user = db.relationship('User', backref=db.backref('attempts', lazy=True))
     code = db.relationship('CodeStatus', backref=db.backref('attempts', lazy=True))
 
+
+class AdminMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    message = db.Column(db.Text)
+    code_id = db.Column(db.Integer, db.ForeignKey('code_status.id'))
+    created_at = db.Column(db.DateTime)
+    read = db.Column(db.Boolean, default=False)
+
+    # Связи
+    user = db.relationship('User', backref=db.backref('admin_messages', lazy=True))
+    code = db.relationship('CodeStatus', backref=db.backref('messages', lazy=True))
