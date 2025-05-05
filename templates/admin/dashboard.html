@@ -7,6 +7,18 @@
     <h1>Панель администратора</h1>
 
     <div class="admin-section">
+        <h2>Управление администраторами</h2>
+        <div class="admin-controls">
+            <a href="{{ url_for('reset_all_admins') }}" class="admin-btn danger-btn" onclick="return confirm('Вы уверены, что хотите сбросить всех администраторов? После этого вам нужно будет заново назначить администратора.')">
+                Сбросить всех администраторов
+            </a>
+            <p class="admin-note">
+                <strong>Важно:</strong> После сброса администраторов, перейдите по адресу <code>/admin/create/ID</code>, где ID - это ID пользователя, которого вы хотите сделать администратором.
+            </p>
+        </div>
+    </div>
+
+    <div class="admin-section">
         <h2>Пользователи</h2>
         <table class="admin-table">
             <thead>
@@ -31,6 +43,9 @@
                         <a href="{{ url_for('make_admin', user_id=user.id) }}" class="admin-btn admin-make-admin">Сделать админом</a>
                         {% else %}
                         <span class="admin-badge">Администратор</span>
+                        {% if user.id != current_user.id %}
+                        <a href="{{ url_for('remove_admin', user_id=user.id) }}" class="admin-btn danger-btn">Удалить права</a>
+                        {% endif %}
                         {% endif %}
                     </td>
                 </tr>

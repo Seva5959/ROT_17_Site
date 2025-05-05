@@ -11,9 +11,12 @@
         <nav>
             {% if current_user.is_authenticated %}
                 <a href="{{ url_for('main_index') }}" class="nav-link">Главная</a>
-                {% if current_user.is_admin %}
-                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link admin-link">Админ панель</a>
-                {% endif %}
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-link {{ 'admin-link' if current_user.is_admin else 'disabled-link' }}">
+                    Админ панель
+                    {% if not current_user.is_admin %}
+                    <span class="tooltip">Требуются права администратора</span>
+                    {% endif %}
+                </a>
                 <a href="{{ url_for('logout') }}" class="nav-link">Выйти ({{ current_user.username }})</a>
             {% else %}
                 <a href="{{ url_for('login') }}" class="nav-link">Войти</a>

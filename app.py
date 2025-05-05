@@ -180,6 +180,34 @@ def user_details(user_id):
                           unsuccessful_attempts=unsuccessful_attempts,
                           CORRECT_ANSWERS=CORRECT_ANSWERS)
 
+
+@app.route('/admin/remove/<int:user_id>')
+@login_required
+def remove_admin(user_id):
+    if not current_user.is_admin:
+        abort(403)
+
+    if user_id == current_user.id:
+        flash('Вы не можете удалить свои права администратора')
+        return redirect(url_for('admin_dashboard'))
+
+    user = User.query.get_or_404(user_id)
+    user.is_admin = False
+    db.session.commit()
+    flash(f'Пользователь {user.username} больше не администратор')
+    return redirect(url_for('admin_dashboard'))
+
+# Сбросить всех админов
+@app.route('/admin/reset')
+@login_required
+def reset_all_admins():
+    # Осторожно: сбрасывает права у всех
+    User.query.update({User.is_admin: False})
+    db.session.commit()
+    flash('Все права администраторов сброшены')
+    return redirect(url_for('main_index'))
+
+
 # Маршрут для назначения пользователя администратором
 @app.route('/admin/create/<int:user_id>')
 @login_required
@@ -196,7 +224,6 @@ def make_admin(user_id):
     db.session.commit()
     flash(f'Пользователь {user.username} теперь администратор')
     return redirect(url_for('admin_dashboard'))
-
 
 def to_roman(num):
     val = [

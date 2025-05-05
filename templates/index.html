@@ -4,27 +4,50 @@
 
 {% block content %}
 <div class="container">
-    <h1>Проверь разгаданный шифр! </h1>
-    
+    <h1>Проверь разгаданный шифр!</h1>
+
+    <!-- Блок поздравления (появляется только когда все решено) -->
+    {% if all_solved %}
+    <div class="congratulations-container" id="congratsContainer">
+        <div class="congratulations-card">
+            <div class="confetti-container">
+                {% for _ in range(10) %}<div class="confetti"></div>{% endfor %}
+            </div>
+            <h2>🎉 Поздравляем! 🎉</h2>
+            <p>Вы успешно разгадали все шифры!</p>
+            <div class="full-link-container">
+                <p>Вот полная ссылка:</p>
+                <div class="full-link-box">
+                    <input type="text" id="fullLink" value="{{ full_link }}" readonly>
+                    <button onclick="copyToClipboard('fullLink')">Копировать</button>
+                </div>
+                <div class="copy-success-message">Ссылка скопирована!</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="grid">
         {% for code in codes %}
             <div class="card {{ 'solved' if code.solved }}">
                 <span class="card-number">{{ code.roman_number }}</span>
-                
+
                 {% if code.solved %}
                     <div class="success-message">✅ Успешно разгадано!</div>
                     <button class="toggle-btn">▼ Показать ответ</button>
                     <div class="answer-block">
-                        <input type="text" 
-                               value="{{ answers[code.number] }}" 
+                        <input type="text"
+                               value="{{ answers[code.number] }}"
                                id="answer-{{ code.id }}"
                                readonly>
-                        <button class="copy-btn">Копировать</button>
+                        <button class="copy-btn" onclick="copyToClipboard('answer-{{ code.id }}')">
+                            Копировать
+                        </button>
                     </div>
                 {% else %}
                     <form method="POST" action="{{ url_for('check', code_id=code.id) }}">
-                        <input type="text" 
-                               name="decoded_text" 
+                        <input type="text"
+                               name="decoded_text"
                                placeholder="Введите текст"
                                required>
                         <button type="submit">Проверить</button>
@@ -33,5 +56,53 @@
             </div>
         {% endfor %}
     </div>
+
+    <!-- Блок с полной ссылкой (только когда все решено) -->
+    {% if all_solved %}
+    <div class="permanent-link-section">
+        <h3>Полная ссылка:</h3>
+        <div class="full-link-box">
+            <input type="text" id="permanentLink" value="{{ full_link }}" readonly>
+            <button onclick="copyToClipboard('permanentLink')">Копировать</button>
+        </div>
+    </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Универсальная функция копирования
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    element.select();
+    document.execCommand('copy');
+
+    // Показываем уведомление
+    const notification = element.nextElementSibling?.querySelector('.copy-success-message') ||
+                         document.querySelector('.copy-success-message');
+
+    if (notification) {
+        notification.style.display = 'block';
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 2000);
+    }
+}
+
+// Показ/скрытие поздравления
+function toggleCongrats(show) {
+    const container = document.getElementById('congratsContainer');
+    if (container) {
+        container.style.display = show ? 'flex' : 'none';
+    }
+}
+
+// Автопоказ при загрузке если все решено
+{% if all_solved %}
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => toggleCongrats(true), 500);
+});
+{% endif %}
+</script>
 {% endblock %}
