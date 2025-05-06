@@ -166,6 +166,7 @@ button:hover {
 
 /* Навигация */
 nav {
+    display: flex;
     background: #333;
     padding: 1rem;
 }
@@ -178,6 +179,10 @@ nav a {
 
 nav a:hover {
     text-decoration: underline;
+}
+
+.nav-right {
+    margin-left: auto;
 }
 
 /* Контейнер для flash-сообщений */
@@ -1552,3 +1557,23 @@ nav a:hover {
     color: #777;
     font-style: italic;
 }
+
+/* Message Count Badge */
+.message-count {
+    display: none;
+    background-color: #e74c3c;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    line-height: 20px;
+    font-size: 12px;
+    margin-left: 5px;
+    font-weight: bold;
+}
+
+/* Messages Table */
+.messages-table {
+    width: 100%;
+    border-collapse:

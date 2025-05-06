@@ -70,8 +70,20 @@
             {% endif %}
         </div>
 
+        <hr>
+
+        <div class="reply-form">
+            <h3>Ответ пользователю</h3>
+            <form method="post">
+                <div class="form-group">
+                    <label for="message">Сообщение:</label>
+                    <textarea name="message" id="message" rows="5" required></textarea>
+                </div>
+                <button type="submit" class="btn-primary">Отправить</button>
+            </form>
+        </div>
+
         <div class="admin-actions">
-            <a href="mailto:{{ message.user.email }}" class="admin-btn email-btn">Написать пользователю</a>
             <a href="{{ url_for('admin_messages') }}" class="admin-btn">Назад к списку</a>
         </div>
     </div>

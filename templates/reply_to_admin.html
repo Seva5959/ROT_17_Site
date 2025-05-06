@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Ответ администратору{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Ответ администратору</h1>
+
+    <a href="{{ url_for('user_messages') }}" class="back-btn">← Назад к списку сообщений</a>
+
+    <div class="message-details">
+        <div class="original-message">
+            <h3>Вы отвечаете на сообщение:</h3>
+            <div class="message-meta">
+                <p><strong>Дата отправки:</strong> {{ message.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</p>
+                {% if message.subject %}<p><strong>Тема:</strong> {{ message.subject }}</p>{% endif %}
+            </div>
+            <div class="message-text">
+                {{ message.message }}
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('reply_to_admin', message_id=message.id) }}" class="reply-form">
+            <div class="form-group">
+                <label for="message">Ваш ответ:</label>
+                <textarea id="message" name="message" required placeholder="Введите текст сообщения"></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn">Отправить ответ</button>
+                <a href="{{ url_for('user_messages') }}" class="btn cancel-btn">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Просмотр сообщения{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Просмотр сообщения</h1>
+
+    <a href="{{ url_for('user_messages') }}" class="back-btn">← Назад к списку сообщений</a>
+
+    <div class="message-details">
+        <div class="message-header">
+            <div class="message-meta">
+                <p><strong>От администратора</strong></p>
+                <p><strong>Дата отправки:</strong> {{ message.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</p>
+                {% if message.subject %}<p><strong>Тема:</strong> {{ message.subject }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div class="message-body">
+            <h3>Сообщение:</h3>
+            <div class="message-text">
+                {{ message.message }}
+            </div>
+        </div>
+
+        <div class="user-actions">
+            <a href="{{ url_for('user_messages') }}" class="btn">Назад к списку</a>
+            <a href="{{ url_for('reply_to_admin', message_id=message.id) }}" class="btn reply-btn">Ответить</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

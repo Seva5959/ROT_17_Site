@@ -24,6 +24,10 @@
                         <span class="message-count" id="messageCount"></span>
                     </a>
                     {% endif %}
+                    <a href="{{ url_for('user_messages') }}" class="nav-link">
+                        Мои сообщения
+                        <span class="message-count" id="userMessageCount"></span>
+                    </a>
                 </div>
                 <div class="nav-right">
                     <a href="{{ url_for('logout') }}" class="nav-link logout-btn">Выйти ({{ current_user.username }})</a>
@@ -104,14 +108,36 @@
                 // Обновляем счетчик каждые 30 секунд
                 setInterval(updateMessageCount, 30000);
             {% endif %}
+
+            // Обновляем счетчик непрочитанных сообщений для пользователя
+            {% if current_user.is_authenticated %}
+                updateUserMessageCount();
+                // Обновляем счетчик каждые 30 секунд
+                setInterval(updateUserMessageCount, 30000);
+            {% endif %}
         });
 
-        // Функция для получения количества непрочитанных сообщений
+        // Функция для получения количества непрочитанных сообщений для админа
         function updateMessageCount() {
             fetch('/admin/unread_messages_count')
                 .then(response => response.json())
                 .then(data => {
                     const messageCount = document.getElementById('messageCount');
+                    if (data.count > 0) {
+                        messageCount.textContent = data.count;
+                        messageCount.style.display = 'inline-block';
+                    } else {
+                        messageCount.style.display = 'none';
+                    }
+                });
+        }
+
+        // Функция для получения количества непрочитанных сообщений для пользователя
+        function updateUserMessageCount() {
+            fetch('/user/unread_messages_count')
+                .then(response => response.json())
+                .then(data => {
+                    const messageCount = document.getElementById('userMessageCount');
                     if (data.count > 0) {
                         messageCount.textContent = data.count;
                         messageCount.style.display = 'inline-block';

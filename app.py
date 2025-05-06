@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, abort, jsonify
-from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User, CodeAttempt, AdminMessage
+from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User, CodeAttempt, AdminMessage, Message
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime
 from sqlalchemy import desc
@@ -22,42 +22,38 @@ with app.app_context():
     if CodeStatus.query.count() == 0:
         for i in range(1, 18):
             db.session.add(CodeStatus(number=i))
-        db.session.commit()
+    db.session.commit()
 
 
 @app.route('/', endpoint='main_index')
 @login_required
 def index():
-    # Здесь мы получаем все записи о прогрессе пользователя
     progress = UserProgress.query.filter_by(user_id=current_user.id).all()
-    # Получаем статусы всех кодов
     codes = CodeStatus.query.all()
-    # Создаем словарь с информацией о решении для каждого кода
     solved_dict = {p.code_id: p.solved for p in progress}
-    # Обновляем статус решения для каждого кода
+
     for code in codes:
         code.solved = solved_dict.get(code.id, False)
         code.roman_number = to_roman(code.number)
 
-    # Проверяем, решены ли все загадки
     all_solved = all(code.solved for code in codes)
-
-    # Если все решены, составляем полную ссылку
     full_link = ""
+
     if all_solved:
-        # Собираем все части ссылки в правильном порядке
-        for i in range(1, 18):  # От 1 до 17
+        for i in range(1, 18):
             full_link += CORRECT_ANSWERS.get(i, "")
 
-    return render_template('index.html', codes=codes, answers=CORRECT_ANSWERS,
-                           all_solved=all_solved, full_link=full_link)
+    return render_template('index.html',
+                           codes=codes,
+                           answers=CORRECT_ANSWERS,
+                           all_solved=all_solved,
+                           full_link=full_link)
 
-# Изменим функцию проверки, чтобы сохранять попытки
+
 @app.route('/check/<int:code_id>', methods=['POST'])
 @login_required
 def check(code_id):
     user_input = request.form['decoded_text'].strip()
-    # Получаем код по его ID из базы данных
     code = CodeStatus.query.get(code_id)
     if not code:
         flash('❌ Код не найден')
@@ -69,7 +65,6 @@ def check(code_id):
         code_id=code_id
     ).first()
 
-    # Если прогресс по этому коду ещё не создан — создаём
     if not progress:
         progress = UserProgress(
             user_id=current_user.id,
@@ -77,7 +72,6 @@ def check(code_id):
         )
         db.session.add(progress)
 
-    # Сохраняем попытку в таблицу CodeAttempt
     attempt = CodeAttempt(
         user_id=current_user.id,
         code_id=code_id,
@@ -93,15 +87,14 @@ def check(code_id):
         db.session.commit()
         flash('✅ Правильно!', 'success')
     else:
-        db.session.commit()  # Сохраняем даже неверные попытки
+        db.session.commit()
         flash('❌ Неверно, попробуйте снова', 'error_timed')
 
-        # Проверяем, было ли 3 неудачных попытки подряд
         if check_consecutive_failures(code_id):
-            # Передаем информацию о том, что нужно показать подсказку
             flash('show_hint|' + str(code_id), 'hint')
 
     return redirect(url_for('main_index'))
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -148,18 +141,34 @@ def logout():
     logout_user()
     return redirect(url_for('main_index'))
 
-# Маршрут панели администратора
+
+# Админские маршруты
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
     if not current_user.is_admin:
-        abort(403)  # Запрет, если пользователь не админ
+        abort(403)
 
-    # Получаем всех пользователей для отображения на панели
+    # Все пользователи
     users = User.query.all()
-    return render_template('admin/dashboard.html', users=users)
 
-# Маршрут подробностей по пользователю
+    # Подсчет всех непрочитанных сообщений для всех администраторов
+    unread_count = AdminMessage.query.filter_by(read=False).count()
+
+    # Подсчет всех непрочитанных сообщений для текущего администратора
+    # Если вы хотите показывать только те сообщения, которые были отправлены конкретному администратору
+    user_messages_count = Message.query.filter_by(read=False).count()
+
+    # Подсчет сообщений, отправленных конкретному администратору
+    admin_messages_count = AdminMessage.query.filter_by(admin_id=current_user.id, read=False).count()
+
+    return render_template('admin/dashboard.html',
+                           users=users,
+                           unread_count=unread_count,
+                           user_messages_count=user_messages_count,
+                           admin_messages_count=admin_messages_count)
+
+
 @app.route('/admin/user/<int:user_id>')
 @login_required
 def user_details(user_id):
@@ -168,8 +177,6 @@ def user_details(user_id):
 
     user = User.query.get_or_404(user_id)
     progress = UserProgress.query.filter_by(user_id=user_id).all()
-
-    # Получаем успешные и неуспешные попытки отдельно
     successful_attempts = CodeAttempt.query.filter_by(
         user_id=user_id,
         is_correct=True
@@ -180,65 +187,167 @@ def user_details(user_id):
         is_correct=False
     ).order_by(desc(CodeAttempt.attempt_time)).all()
 
-    # Получаем все коды (чтобы показать, какие решены, а какие — нет)
     codes = CodeStatus.query.all()
-
-    # Создаём словарь: ID кода → прогресс пользователя
     progress_dict = {p.code_id: p for p in progress}
 
     return render_template('admin/user_details.html',
-                          user=user,
-                          codes=codes,
-                          progress_dict=progress_dict,
-                          successful_attempts=successful_attempts,
-                          unsuccessful_attempts=unsuccessful_attempts,
-                          CORRECT_ANSWERS=CORRECT_ANSWERS)
+                           user=user,
+                           codes=codes,
+                           progress_dict=progress_dict,
+                           successful_attempts=successful_attempts,
+                           unsuccessful_attempts=unsuccessful_attempts,
+                           CORRECT_ANSWERS=CORRECT_ANSWERS)
 
 
-@app.route('/admin/remove/<int:user_id>')
+# Система сообщений
+@app.route('/user/messages')
 @login_required
-def remove_admin(user_id):
+def user_messages():
+    messages = AdminMessage.query.filter_by(user_id=current_user.id).order_by(AdminMessage.created_at.desc()).all()
+    return render_template('user_messages.html', messages=messages)
+
+
+@app.route('/user/messages/<int:message_id>')
+@login_required
+def view_user_message(message_id):
+    message = AdminMessage.query.get_or_404(message_id)
+
+    if message.user_id != current_user.id:
+        flash('Доступ запрещен', 'error')
+        return redirect(url_for('user_messages'))
+
+    if not message.read:
+        message.read = True
+        message.read_at = datetime.utcnow()
+        db.session.commit()
+
+    return render_template('user_message_details.html', message=message)
+
+
+@app.route('/user/reply/<int:message_id>', methods=['GET', 'POST'])
+@login_required
+def reply_to_admin(message_id):
+    # Получаем сообщение от администратора
+    admin_message = AdminMessage.query.get_or_404(message_id)
+
+    # Проверяем, что пользователь, который пытается ответить, является владельцем сообщения
+    if admin_message.user_id != current_user.id:
+        flash('Доступ запрещен', 'error')
+        return redirect(url_for('user_messages'))
+
+    # Проверяем, был ли уже отправлен ответ на это сообщение
+    existing_reply = Message.query.filter_by(reply_to=message_id).first()
+    if existing_reply:
+        flash('Вы уже отправили ответ на это сообщение', 'error')
+        return redirect(url_for('user_messages'))
+
+    # Обрабатываем форму ответа
+    if request.method == 'POST':
+        message_text = request.form.get('message')
+
+        # Проверка на пустое сообщение
+        if not message_text or len(message_text.strip()) == 0:
+            flash('Сообщение не может быть пустым', 'error')
+            return redirect(url_for('reply_to_admin', message_id=message_id))
+
+        # Создаем новый ответ
+        message = Message(
+            user_id=current_user.id,
+            admin_id=admin_message.admin_id,
+            code_id=admin_message.code_id,
+            message=message_text,
+            created_at=datetime.utcnow(),
+            read=False,
+            reply_to=message_id
+        )
+
+        # Добавляем ответ в базу данных
+        db.session.add(message)
+        db.session.commit()
+
+        flash('Ваш ответ отправлен администратору', 'success')
+        return redirect(url_for('user_messages'))
+
+    # Отображаем страницу для отправки ответа
+    return render_template('reply_to_admin.html', message=admin_message)
+
+
+@app.route('/admin/send_message/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+def send_message_to_user(user_id):
+    if not current_user.is_admin:
+        flash('Доступ запрещен', 'error')
+        return redirect(url_for('main_index'))
+
+    user = User.query.get_or_404(user_id)
+
+    if request.method == 'POST':
+        message_text = request.form.get('message')
+
+        if not message_text or len(message_text.strip()) == 0:
+            flash('Сообщение не может быть пустым', 'error')
+            return redirect(url_for('send_message_to_user', user_id=user_id))
+
+        admin_message = AdminMessage(
+            user_id=user.id,
+            message=message_text,
+            created_at=datetime.utcnow(),
+            read=False
+        )
+
+        db.session.add(admin_message)
+        db.session.commit()
+
+        flash(f'Сообщение отправлено пользователю {user.username}', 'success')
+        return redirect(url_for('admin_messages'))
+
+    return render_template('admin/send_message.html', user=user)
+
+
+@app.route('/admin/messages')
+@login_required
+def admin_messages():
     if not current_user.is_admin:
         abort(403)
 
-    if user_id == current_user.id:
-        flash('Вы не можете удалить свои права администратора')
-        return redirect(url_for('admin_dashboard'))
+    messages = AdminMessage.query.order_by(AdminMessage.created_at.desc()).all()
+    return render_template('admin/messages.html', messages=messages)
 
-    user = User.query.get_or_404(user_id)
-    user.is_admin = False
-    db.session.commit()
-    flash(f'Пользователь {user.username} больше не администратор')
-    return redirect(url_for('admin_dashboard'))
 
-# Сбросить всех админов
-@app.route('/admin/reset')
+@app.route('/admin/messages/<int:message_id>', methods=['GET', 'POST'])
 @login_required
-def reset_all_admins():
-    # Осторожно: сбрасывает права у всех
-    User.query.update({User.is_admin: False})
-    db.session.commit()
-    flash('Все права администраторов сброшены')
-    return redirect(url_for('main_index'))
+def view_message(message_id):
+    if not current_user.is_admin:
+        abort(403)
 
+    message = AdminMessage.query.get_or_404(message_id)
 
-# Маршрут для назначения пользователя администратором
-@app.route('/admin/create/<int:user_id>')
-@login_required
-def make_admin(user_id):
-    # Этот маршрут должен быть доступен только один раз — для создания первого админа
-    # После этого его нужно ограничить или удалить
-    if User.query.filter_by(is_admin=True).count() > 0:
-        # Если админ уже существует, то только админ может создать другого админа
-        if not current_user.is_admin:
-            abort(403)
+    if not message.read:
+        message.read = True
+        message.read_at = datetime.utcnow()
+        db.session.commit()
 
-    user = User.query.get_or_404(user_id)
-    user.is_admin = True
-    db.session.commit()
-    flash(f'Пользователь {user.username} теперь администратор')
-    return redirect(url_for('admin_dashboard'))
+    if request.method == 'POST':
+        reply_text = request.form.get('message')
+        if not reply_text or len(reply_text.strip()) == 0:
+            flash('Сообщение не может быть пустым', 'error')
+        else:
+            reply = AdminMessage(
+                user_id=message.user_id,
+                admin_id=current_user.id,
+                code_id=message.code_id,
+                message=reply_text.strip(),
+                created_at=datetime.utcnow(),
+                read=False
+            )
+            db.session.add(reply)
+            db.session.commit()
+            flash('Ответ отправлен пользователю', 'success')
+            return redirect(url_for('admin_messages'))
 
+    return render_template('admin/message_details.html', message=message)
+
+# Вспомогательные функции
 def to_roman(num):
     val = [
         1000, 900, 500, 400,
@@ -261,91 +370,81 @@ def to_roman(num):
 
 
 def check_consecutive_failures(code_id):
-    # Получаем последние 3 попытки пользователя по этому коду
     recent_attempts = CodeAttempt.query.filter_by(
         user_id=current_user.id,
         code_id=code_id,
         is_correct=False
     ).order_by(desc(CodeAttempt.attempt_time)).limit(3).all()
 
-    # Если не набралось 3 попытки, значит точно не 3 подряд
     if len(recent_attempts) < 3:
         return False
 
-    # Проверяем, есть ли успешные попытки между неудачными
     last_success = CodeAttempt.query.filter_by(
         user_id=current_user.id,
         code_id=code_id,
         is_correct=True
     ).order_by(desc(CodeAttempt.attempt_time)).first()
 
-    # Если нет успешных или последняя успешная старше самой старой из 3 неудачных
     if not last_success or last_success.attempt_time < recent_attempts[-1].attempt_time:
         return True
 
     return False
 
 
+@app.route('/admin/reset')
+@login_required
+def reset_all_admins():
+    # Осторожно: сбрасывает права у всех
+    User.query.update({User.is_admin: False})
+    db.session.commit()
+    flash('Все права администраторов сброшены')
+    return redirect(url_for('main_index'))
+
+# Маршрут для назначения пользователя администратором
+@app.route('/admin/create/<int:user_id>')
+@login_required
+def make_admin(user_id):
+    # Этот маршрут должен быть доступен только один раз — для создания первого админа
+    # После этого его нужно ограничить или удалить
+    if User.query.filter_by(is_admin=True).count() > 0:
+        # Если админ уже существует, то только админ может создать другого админа
+        if not current_user.is_admin:
+            abort(403)
+
+    user = User.query.get_or_404(user_id)
+    user.is_admin = True
+    db.session.commit()
+    flash(f'Пользователь {user.username} теперь администратор')
+    return redirect(url_for('admin_dashboard'))
+
+
 @app.route('/send_message_to_admin', methods=['POST'])
 @login_required
 def send_message_to_admin():
     code_id = request.form.get('code_id')
-    message = request.form.get('message')
+    message_text = request.form.get('message')
 
-    if not code_id or not message:
-        return jsonify({'success': False, 'error': 'Не указан код или сообщение'})
+    # Проверка на пустое сообщение
+    if not message_text or message_text.strip() == "":
+        return jsonify({'success': False, 'error': 'Пустое сообщение'}), 400
 
-    admin_message = AdminMessage(
-        user_id=current_user.id,
-        code_id=code_id,
-        message=message,
-        created_at=datetime.utcnow()
-    )
+    try:
+        # Преобразование code_id в int (если это нужно)
+        code_id = int(code_id) if code_id else None
 
-    db.session.add(admin_message)
-    db.session.commit()
+        # Создание нового сообщения
+        admin_message = AdminMessage(
+            user_id=current_user.id,
+            message=message_text.strip(),
+            code_id=code_id,
+            created_at=datetime.utcnow(),
+            read=False
+        )
 
-    return jsonify({'success': True})
+        db.session.add(admin_message)
+        db.session.commit()
 
-
-@app.route('/admin/messages')
-@login_required
-def admin_messages():
-    if not current_user.is_admin:
-        abort(403)
-
-    messages = AdminMessage.query.order_by(desc(AdminMessage.created_at)).all()
-    return render_template('admin/messages.html', messages=messages)
-
-
-@app.route('/admin/message/<int:message_id>')
-@login_required
-def view_message(message_id):
-    if not current_user.is_admin:
-        abort(403)
-
-    message = AdminMessage.query.get_or_404(message_id)
-    message.read = True
-    db.session.commit()
-
-    return render_template('admin/message_details.html', message=message)
-
-
-# Добавьте этот маршрут в app.py
-@app.route('/admin/unread_messages_count')
-@login_required
-def unread_messages_count():
-    if not current_user.is_admin:
-        return jsonify({'count': 0})
-
-    count = AdminMessage.query.filter_by(read=False).count()
-    return jsonify({'count': count})
-
-
-
-
-
-
-
-
-
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500

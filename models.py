@@ -67,11 +67,32 @@ class CodeAttempt(db.Model):
 class AdminMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # ➕ Добавлено
     message = db.Column(db.Text)
     code_id = db.Column(db.Integer, db.ForeignKey('code_status.id'))
     created_at = db.Column(db.DateTime)
     read = db.Column(db.Boolean, default=False)
 
-    # Связи
-    user = db.relationship('User', backref=db.backref('admin_messages', lazy=True))
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('admin_messages', lazy=True))
+    admin = db.relationship('User', foreign_keys=[admin_id])  # ➕ Добавлено
     code = db.relationship('CodeStatus', backref=db.backref('messages', lazy=True))
+
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    code_id = db.Column(db.Integer, db.ForeignKey('code_status.id'))
+    message = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    read = db.Column(db.Boolean, default=False)
+    reply_to = db.Column(db.Integer, db.ForeignKey('message.id'))  # ID родительского сообщения, если это ответ
+    read_at = db.Column(db.DateTime)
+
+    # Связи
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('messages', lazy=True))
+    admin = db.relationship('User', foreign_keys=[admin_id],
+                            backref=db.backref('admin_responses', lazy=True))  # Изменили имя
+    code = db.relationship('CodeStatus', backref=db.backref('code_messages', lazy=True))  # Изменили на 'code_messages'
+    reply = db.relationship('Message', remote_side=[id],
+                            backref=db.backref('replies', lazy='dynamic'))  # Ответы на сообщение
