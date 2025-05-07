@@ -11,7 +11,11 @@
     <div class="message-details">
         <div class="message-header">
             <div class="message-meta">
-                <p><strong>От администратора</strong></p>
+                {% if message.admin_id %}
+                    <p><strong>От администратора</strong></p>
+                {% else %}
+                    <p><strong>От пользователя:</strong> {{ message.user.username }}</p>
+                {% endif %}
                 <p><strong>Дата отправки:</strong> {{ message.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</p>
                 {% if message.subject %}<p><strong>Тема:</strong> {{ message.subject }}</p>{% endif %}
             </div>
@@ -24,10 +28,6 @@
             </div>
         </div>
 
-        <div class="user-actions">
-            <a href="{{ url_for('user_messages') }}" class="btn">Назад к списку</a>
-            <a href="{{ url_for('reply_to_admin', message_id=message.id) }}" class="btn reply-btn">Ответить</a>
-        </div>
     </div>
 </div>
 {% endblock %}

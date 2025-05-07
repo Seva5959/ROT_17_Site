@@ -11,7 +11,11 @@
     <div class="admin-section message-details">
         <div class="message-header">
             <div class="message-meta">
-                <p><strong>От пользователя:</strong> {{ message.user.username }}</p>
+                {% if message.admin_id %}
+                    <p><strong>От администратора</strong></p>
+                {% else %}
+                    <p><strong>От пользователя:</strong> {{ message.user.username }}</p>
+                {% endif %}
                 <p><strong>Дата отправки:</strong> {{ message.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</p>
                 <p><strong>Код #:</strong> {{ message.code.number }}</p>
             </div>
@@ -24,6 +28,7 @@
             </div>
         </div>
 
+        {% if not message.admin_id %}
         <div class="user-progress-section">
             <h3>Прогресс пользователя с этим кодом</h3>
             {% set progress = message.user.progress|selectattr('code_id', 'eq', message.code.id)|first %}
@@ -71,7 +76,6 @@
         </div>
 
         <hr>
-
         <div class="reply-form">
             <h3>Ответ пользователю</h3>
             <form method="post">
@@ -82,6 +86,7 @@
                 <button type="submit" class="btn-primary">Отправить</button>
             </form>
         </div>
+        {% endif %}
 
         <div class="admin-actions">
             <a href="{{ url_for('admin_messages') }}" class="admin-btn">Назад к списку</a>

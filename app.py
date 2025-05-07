@@ -149,24 +149,21 @@ def admin_dashboard():
     if not current_user.is_admin:
         abort(403)
 
-    # Все пользователи
     users = User.query.all()
 
-    # Подсчет всех непрочитанных сообщений для всех администраторов
-    unread_count = AdminMessage.query.filter_by(read=False).count()
+    # Подсчет всех непрочитанных сообщений от администратора, не прочитанных пользователями
+    unread_by_users = AdminMessage.query.filter_by(read_by_user=False).count()
 
-    # Подсчет всех непрочитанных сообщений для текущего администратора
-    # Если вы хотите показывать только те сообщения, которые были отправлены конкретному администратору
-    user_messages_count = Message.query.filter_by(read=False).count()
-
-    # Подсчет сообщений, отправленных конкретному администратору
-    admin_messages_count = AdminMessage.query.filter_by(admin_id=current_user.id, read=False).count()
+    # Подсчет всех непрочитанных ответов от пользователей (если они хранятся в другой модели Message)
+    user_messages_count = Message.query.filter_by(read_by_admin=False).count()
+    # Подсчет непрочитанных сообщений текущим админом (например, ответов пользователя)
+    unread_by_admin = AdminMessage.query.filter_by(admin_id=current_user.id, read_by_admin=False).count()
 
     return render_template('admin/dashboard.html',
                            users=users,
-                           unread_count=unread_count,
+                           unread_count=unread_by_users,
                            user_messages_count=user_messages_count,
-                           admin_messages_count=admin_messages_count)
+                           admin_messages_count=unread_by_admin)
 
 
 @app.route('/admin/user/<int:user_id>')
@@ -216,13 +213,11 @@ def view_user_message(message_id):
         flash('Доступ запрещен', 'error')
         return redirect(url_for('user_messages'))
 
-    if not message.read:
-        message.read = True
-        message.read_at = datetime.utcnow()
+    if not message.read_by_user:
+        message.read_by_user = True
         db.session.commit()
 
     return render_template('user_message_details.html', message=message)
-
 
 @app.route('/user/reply/<int:message_id>', methods=['GET', 'POST'])
 @login_required
@@ -322,9 +317,8 @@ def view_message(message_id):
 
     message = AdminMessage.query.get_or_404(message_id)
 
-    if not message.read:
-        message.read = True
-        message.read_at = datetime.utcnow()
+    if not message.read_by_admin:
+        message.read_by_admin = True
         db.session.commit()
 
     if request.method == 'POST':

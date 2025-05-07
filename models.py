@@ -77,6 +77,8 @@ class AdminMessage(db.Model):
     admin = db.relationship('User', foreign_keys=[admin_id])  # ➕ Добавлено
     code = db.relationship('CodeStatus', backref=db.backref('messages', lazy=True))
 
+    read_by_user = db.Column(db.Boolean, default=False)
+    read_by_admin = db.Column(db.Boolean, default=False)
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -85,7 +87,9 @@ class Message(db.Model):
     code_id = db.Column(db.Integer, db.ForeignKey('code_status.id'))
     message = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False)
-    read = db.Column(db.Boolean, default=False)
+    read_by_user = db.Column(db.Boolean, default=False)
+    read_by_admin = db.Column(db.Boolean, default=False)
+
     reply_to = db.Column(db.Integer, db.ForeignKey('message.id'))  # ID родительского сообщения, если это ответ
     read_at = db.Column(db.DateTime)
 

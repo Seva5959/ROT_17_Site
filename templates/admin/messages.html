@@ -30,7 +30,7 @@
                     <td>{{ message.code.number }}</td>
                     <td>{{ message.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                     <td>
-                        {% if message.read %}
+                        {% if message.read_by_admin %}
                         <span class="status read">Прочитано</span>
                         {% else %}
                         <span class="status unread">Новое</span>

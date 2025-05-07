@@ -21,11 +21,11 @@
                 </thead>
                 <tbody>
                     {% for message in messages %}
-                    <tr class="{{ 'unread' if not message.read else '' }}">
+                    <tr class="{{ 'unread' if not message.read_by_user  else '' }}">
                         <td>{{ message.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td>{% if message.subject %}{{ message.subject }}{% else %}Сообщение #{{ message.id }}{% endif %}</td>
                         <td>
-                            {% if message.read %}
+                            {% if not message.read_by_user %}
                             <span class="status read">Прочитано</span>
                             {% else %}
                             <span class="status unread">Новое</span>
