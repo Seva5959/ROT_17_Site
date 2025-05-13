@@ -25,7 +25,7 @@
                         <td>{{ message.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td>{% if message.subject %}{{ message.subject }}{% else %}Сообщение #{{ message.id }}{% endif %}</td>
                         <td>
-                            {% if not message.read_by_user %}
+                            {% if  message.read_by_user %}
                             <span class="status read">Прочитано</span>
                             {% else %}
                             <span class="status unread">Новое</span>

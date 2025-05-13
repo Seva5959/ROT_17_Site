@@ -213,12 +213,13 @@ def view_user_message(message_id):
         flash('Доступ запрещен', 'error')
         return redirect(url_for('user_messages'))
 
+    # Маркируем сообщение как прочитанное, если ещё не прочитано
     if not message.read_by_user:
         message.read_by_user = True
+        message.read_at = datetime.utcnow()  # Добавляем время прочтения
         db.session.commit()
 
     return render_template('user_message_details.html', message=message)
-
 @app.route('/user/reply/<int:message_id>', methods=['GET', 'POST'])
 @login_required
 def reply_to_admin(message_id):
@@ -442,3 +443,27 @@ def send_message_to_admin():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/user/unread_messages_count')
+@login_required
+def unread_user_messages_count():
+    # Подсчет непрочитанных сообщений для текущего пользователя
+    count = AdminMessage.query.filter_by(
+        user_id=current_user.id,
+        read_by_user=False
+    ).count()
+
+    return jsonify({'count': count})
+
+
+@app.route('/admin/unread_messages_count')
+@login_required
+def unread_admin_messages_count():
+    if not current_user.is_admin:
+        abort(403)
+
+    # Подсчет сообщений от пользователей, которые не прочитаны администратором
+    count = Message.query.filter_by(read_by_admin=False).count()
+
+    return jsonify({'count': count})

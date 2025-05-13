@@ -93,10 +93,14 @@ button:hover {
 
 /* Стили для блока с ответом */
 .answer-block {
-    max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease-out;
     margin-top: 10px;
+}
+/* Временный стиль для отладки */
+button:active {
+    transform: scale(0.95);
+    background-color: #ffeb3b !important;
 }
 
 .answer-block input {
@@ -132,7 +136,7 @@ button:hover {
 }
 
 /* Стили для кнопки переключения при наведении */
-.toggle-btn {
+    .toggle-btn {
     transition: all 0.2s;
 }
 
@@ -1251,20 +1255,7 @@ nav a:hover {
     background-color: #c0392b;
 }
 
-/* Уведомление о копировании */
-.copy-notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 12px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    opacity: 1;
-    transition: opacity 0.5s;
-    z-index: 2000;
-}
+
 
 .copy-success-message {
     color: #2ecc71;
@@ -1398,20 +1389,7 @@ nav a:hover {
     margin-left: 5px;
 }
 
-/* Стили для уведомления о копировании */
-.copy-notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 12px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    opacity: 1;
-    transition: opacity 0.5s;
-    z-index: 2000;
-}
+
 
 /* Админ-панель сообщений */
 .admin-dashboard {

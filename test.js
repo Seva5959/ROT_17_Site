@@ -1,23 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Инициализация всех функций
     initApp();
-    // Скрываем все ответы при загрузке
-    hideAllAnswers();
 });
-
-// Новая функция для скрытия всех ответов
-function hideAllAnswers() {
-    document.querySelectorAll('.answer-block').forEach(block => {
-        // Проверяем, не скрыт ли уже блок (чтобы не сбрасывать анимацию)
-        if (block.style.maxHeight !== '0px') {
-            block.style.maxHeight = '0px';
-            // Устанавливаем transition только если ещё не задан
-            if (!block.style.transition) {
-                block.style.transition = 'max-height 0.3s ease';
-            }
-        }
-    });
-}
 
 // Функция инициализации приложения
 function initApp() {
@@ -48,45 +32,14 @@ function setupEventDelegation() {
 }
 
 // Обработка кнопок переключения
-function handleToggleButton(button) {
-    const answerBlock = button.nextElementSibling;
+function handleToggleButton(btn) {
+    const answerBlock = btn.nextElementSibling;
+    const isHidden = answerBlock.style.maxHeight === '0px' || !answerBlock.style.maxHeight;
 
-    // 1. Проверка блока
-    if (!answerBlock) {
-        showDebugMessage('Блок ответа не найден!', true);
-        return;
-    }
-
-    // 2. Определение состояния на основе computed style
-    const computedStyle = window.getComputedStyle(answerBlock);
-    const isHidden = computedStyle.maxHeight === '0px' ||
-                     parseInt(computedStyle.maxHeight) === 0;
-
-    // 3. Переключение
-    if (isHidden) {
-        // Показываем ответ
-        answerBlock.style.transition = 'max-height 0.3s ease';
-        answerBlock.style.maxHeight = `${answerBlock.scrollHeight}px`;
-        button.textContent = '▲ Скрыть';
-    } else {
-        // Скрываем ответ
-        answerBlock.style.transition = 'max-height 0.3s ease';
-        answerBlock.style.maxHeight = '0px';
-        button.textContent = '▼ Показать ответ';
-    }
-
-    // 4. Отладочное сообщение
-    showDebugMessage(`Состояние: ${isHidden ? 'показано' : 'скрыто'} (${computedStyle.maxHeight})`);
+    answerBlock.style.maxHeight = isHidden ? answerBlock.scrollHeight + 'px' : '0';
+    btn.textContent = isHidden ? '▲ Скрыть' : '▼ Показать ответ';
 }
 
-// Улучшенный вывод сообщений
-function showDebugMessage(msg, isError = false) {
-    const debugDiv = document.getElementById('debug-messages') || createDebugDiv();
-    debugDiv.innerHTML = `<p style="color: ${isError ? 'red' : 'black'}">${msg}</p>`;
-
-    // Автоочистка через 3 секунды
-    setTimeout(() => debugDiv.innerHTML = '', 3000);
-}
 // Обработка кнопок копирования
 function handleCopyButton(btn) {
     const input = btn.previousElementSibling;
