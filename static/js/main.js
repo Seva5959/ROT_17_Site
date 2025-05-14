@@ -222,7 +222,7 @@ window.showHint = function(step, codeId) {
         case 4:
             image.src = "/static/image/cat_4.png";
             text.textContent = "Написать Админу?";
-            nextBtn.textContent = "Да";
+            nextBtn.style.display = 'none';
             adminForm.style.display = 'block';
             break;
     }

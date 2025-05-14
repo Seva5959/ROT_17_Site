@@ -365,25 +365,33 @@ def to_roman(num):
 
 
 def check_consecutive_failures(code_id):
-    recent_attempts = CodeAttempt.query.filter_by(
+    # Получаем все попытки пользователя для данного кода, отсортированные от новых к старым
+    all_attempts = CodeAttempt.query.filter_by(
         user_id=current_user.id,
-        code_id=code_id,
-        is_correct=False
-    ).order_by(desc(CodeAttempt.attempt_time)).limit(3).all()
+        code_id=code_id
+    ).order_by(desc(CodeAttempt.attempt_time)).all()
 
-    if len(recent_attempts) < 3:
+    # Если нет хотя бы 3 попыток, то подсказку не показываем
+    if len(all_attempts) < 3:
         return False
 
-    last_success = CodeAttempt.query.filter_by(
-        user_id=current_user.id,
-        code_id=code_id,
-        is_correct=True
-    ).order_by(desc(CodeAttempt.attempt_time)).first()
+    # Берем только последние 3 попытки
+    recent_attempts = all_attempts[:3]
 
-    if not last_success or last_success.attempt_time < recent_attempts[-1].attempt_time:
-        return True
+    # Проверяем, что все 3 последние попытки неудачные
+    if not all(not attempt.is_correct for attempt in recent_attempts):
+        return False
 
-    return False
+    # Проверяем, что количество последних неудачных попыток кратно 3
+    # Это означает, что пользователь сделал ровно 3, 6, 9... неудачных попыток подряд
+    unsuccessful_streak = 0
+    for attempt in all_attempts:
+        if attempt.is_correct:
+            break
+        unsuccessful_streak += 1
+
+    # Показываем подсказку только если количество неудачных попыток кратно 3
+    return unsuccessful_streak % 3 == 0
 
 
 @app.route('/admin/reset')
