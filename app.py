@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, abort, jsonify
 from models import CodeStatus, CORRECT_ANSWERS, db, UserProgress, User, CodeAttempt, AdminMessage, Message
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import desc
 
 app = Flask(__name__)
@@ -77,13 +77,13 @@ def check(code_id):
         code_id=code_id,
         input_text=user_input,
         is_correct=(user_input == correct_answer),
-        attempt_time=datetime.utcnow()
+        attempt_time=utc_to_local(datetime.utcnow())
     )
     db.session.add(attempt)
 
     if user_input == correct_answer:
         progress.solved = True
-        progress.solved_at = datetime.utcnow()
+        progress.solved_at = utc_to_local(datetime.utcnow())
         db.session.commit()
         flash('✅ Правильно!', 'success')
     else:
@@ -216,7 +216,7 @@ def view_user_message(message_id):
     # Маркируем сообщение как прочитанное, если ещё не прочитано
     if not message.read_by_user:
         message.read_by_user = True
-        message.read_at = datetime.utcnow()  # Добавляем время прочтения
+        message.read_at = utc_to_local(datetime.utcnow())  # Добавляем время прочтения
         db.session.commit()
 
     return render_template('user_message_details.html', message=message)
@@ -252,7 +252,7 @@ def reply_to_admin(message_id):
             admin_id=admin_message.admin_id,
             code_id=admin_message.code_id,
             message=message_text,
-            created_at=datetime.utcnow(),
+            created_at=utc_to_local(datetime.utcnow()),
             read=False,
             reply_to=message_id
         )
@@ -287,7 +287,7 @@ def send_message_to_user(user_id):
         admin_message = AdminMessage(
             user_id=user.id,
             message=message_text,
-            created_at=datetime.utcnow(),
+            created_at=utc_to_local(datetime.utcnow()),
             read=False
         )
 
@@ -332,7 +332,7 @@ def view_message(message_id):
                 admin_id=current_user.id,
                 code_id=message.code_id,
                 message=reply_text.strip(),
-                created_at=datetime.utcnow(),
+                created_at=utc_to_local(datetime.utcnow()),
                 read=False
             )
             db.session.add(reply)
@@ -440,7 +440,7 @@ def send_message_to_admin():
             user_id=current_user.id,
             message=message_text.strip(),
             code_id=code_id,
-            created_at=datetime.utcnow(),
+            created_at=utc_to_local(datetime.utcnow()),
             read=False
         )
 
@@ -475,3 +475,6 @@ def unread_admin_messages_count():
     count = Message.query.filter_by(read_by_admin=False).count()
 
     return jsonify({'count': count})
+
+def utc_to_local(utc_dt):
+    return utc_dt + timedelta(hours=5)  # Используй часовой пояс UTC+5
